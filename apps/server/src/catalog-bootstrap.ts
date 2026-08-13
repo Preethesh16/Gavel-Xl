@@ -12,6 +12,11 @@ import type {
 } from '@gavel-xi/shared';
 
 const DATA = 'https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data';
+// A free Render instance has a 256 MB Node heap. This is deliberately still
+// far larger than the maximum 8-director draft requires, while avoiding a
+// startup OOM from loading thousands of rich JSON documents at once.
+const MAX_PLAYERS_PER_POSITION = 120;
+const MAX_MANAGERS = 120;
 // England, Spain, Italy, Germany, France, Portugal, Netherlands, Belgium, Turkey.
 const NINE_LEAGUES = new Set(['GB1', 'ES1', 'IT1', 'L1', 'FR1', 'PO1', 'NL1', 'BE1', 'TR1']);
 const positionMap: Record<string, Position> = {
@@ -195,7 +200,7 @@ export async function createTransfermarktCatalog(): Promise<{
       .map((club) => [club['club_id']!, club]),
   );
   const updatedAt = new Date().toISOString();
-  const players: CandidateSnapshot[] = [];
+  const playersByPosition = new Map<Position, CandidateSnapshot[]>();
   await forEachPlayer((entry) => {
     const club = clubs.get(entry['current_club_id'] ?? '');
     const position = positionMap[entry['sub_position'] ?? ''];
@@ -209,7 +214,7 @@ export async function createTransfermarktCatalog(): Promise<{
       return;
     const id = `transfermarkt:${entry['player_id']}`;
     const baseline = clamp(45 + Math.log10(value) * 7);
-    players.push({
+    const candidate: CandidateSnapshot = {
       id,
       kind: 'PLAYER' as const,
       fullName: entry['name']!,
@@ -237,43 +242,55 @@ export async function createTransfermarktCatalog(): Promise<{
       dataSource:
         'Transfermarkt-derived open catalogue; profiles and market valuations; imported snapshot',
       dataUpdatedAt: updatedAt,
-    });
+    };
+    const entries = playersByPosition.get(position) ?? [];
+    entries.push(candidate);
+    entries.sort(
+      (left, right) =>
+        (right.valuation.valueEUR ?? 0) - (left.valuation.valueEUR ?? 0) ||
+        left.id.localeCompare(right.id),
+    );
+    if (entries.length > MAX_PLAYERS_PER_POSITION) entries.pop();
+    playersByPosition.set(position, entries);
   });
-  const managers: CandidateSnapshot[] = [...clubs.values()].flatMap((club) => {
-    const name = club['coach_name']?.trim();
-    if (name === undefined || name === '') return [];
-    return [
-      {
-        id: `transfermarkt:coach:${club['club_id']}`,
-        kind: 'MANAGER' as const,
-        fullName: name,
-        commonName: name,
-        age: 45,
-        nationality: 'Unknown',
-        club: club['name']!,
-        league: club['domestic_competition_id']!,
-        positions: ['MANAGER'],
-        preferredPosition: 'MANAGER',
-        imageUrl: null,
-        season: 'catalog',
-        appearances: 0,
-        starts: 0,
-        minutes: 0,
-        goals: 0,
-        assists: 0,
-        cleanSheets: 0,
-        currentFormRating: 70,
-        availabilityRating: 90,
-        competitionStrength: 82,
-        lastFive: [70, 70, 70, 70, 70],
-        role: role('MANAGER', 70),
-        tactics: managerTactics,
-        valuation: valuation(10_000_000, updatedAt),
-        dataSource: 'Transfermarkt-derived open catalogue; club coach at import time',
-        dataUpdatedAt: updatedAt,
-      },
-    ];
-  });
+  const players = [...playersByPosition.values()].flat();
+  const managers: CandidateSnapshot[] = [...clubs.values()]
+    .flatMap((club) => {
+      const name = club['coach_name']?.trim();
+      if (name === undefined || name === '') return [];
+      return [
+        {
+          id: `transfermarkt:coach:${club['club_id']}`,
+          kind: 'MANAGER' as const,
+          fullName: name,
+          commonName: name,
+          age: 45,
+          nationality: 'Unknown',
+          club: club['name']!,
+          league: club['domestic_competition_id']!,
+        positions: ['MANAGER'] as Position[],
+        preferredPosition: 'MANAGER' as Position,
+          imageUrl: null,
+          season: 'catalog',
+          appearances: 0,
+          starts: 0,
+          minutes: 0,
+          goals: 0,
+          assists: 0,
+          cleanSheets: 0,
+          currentFormRating: 70,
+          availabilityRating: 90,
+          competitionStrength: 82,
+          lastFive: [70, 70, 70, 70, 70],
+          role: role('MANAGER', 70),
+          tactics: managerTactics,
+          valuation: valuation(10_000_000, updatedAt),
+          dataSource: 'Transfermarkt-derived open catalogue; club coach at import time',
+          dataUpdatedAt: updatedAt,
+        },
+      ];
+    })
+    .slice(0, MAX_MANAGERS);
   if (players.length < 300 || managers.length < 9)
     throw new Error(
       `Catalogue too small: ${players.length} specific-position players, ${managers.length} managers.`,
