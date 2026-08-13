@@ -26,7 +26,7 @@
     "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:validate": "prisma validate --schema prisma/schema.prisma",
-    "start": "node dist/main.js",
+    "start": "prisma migrate deploy --schema prisma/schema.prisma && node dist/main.js",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
