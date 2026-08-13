@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
+import { createInterface } from 'node:readline';
+import { Readable } from 'node:stream';
+import { createGunzip } from 'node:zlib';
 import type {
   CandidateSnapshot,
   Position,
@@ -85,6 +88,24 @@ function csv(text: string): Record<string, string>[] {
     .filter((values) => values.length === header.length)
     .map((values) => Object.fromEntries(header.map((name, i) => [name, values[i] ?? ''])));
 }
+function csvRow(line: string): string[] {
+  const values: string[] = [];
+  let value = '';
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index]!;
+    if (quoted && character === '"' && line[index + 1] === '"') {
+      value += '"';
+      index += 1;
+    } else if (character === '"') quoted = !quoted;
+    else if (!quoted && character === ',') {
+      values.push(value);
+      value = '';
+    } else value += character;
+  }
+  values.push(value);
+  return values;
+}
 function integer(value: string, fallback = 0): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -141,20 +162,41 @@ async function fetchCsv(name: string): Promise<Record<string, string>[]> {
   return csv(await new Response(stream).text());
 }
 
+async function forEachPlayer(visit: (entry: Record<string, string>) => void): Promise<void> {
+  const response = await fetch(`${DATA}/players.csv.gz`);
+  if (!response.ok || response.body === null)
+    throw new Error(`Could not download players: HTTP ${response.status}`);
+  // Never materialise the 37k-row source in memory. Render's free instance has
+  // a small Node heap, while the final catalog is only the validated records.
+  const input = Readable.fromWeb(response.body as never).pipe(createGunzip());
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  let header: string[] | null = null;
+  for await (const line of lines) {
+    if (header === null) {
+      header = csvRow(line);
+      continue;
+    }
+    const values = csvRow(line);
+    if (values.length !== header.length) continue;
+    visit(Object.fromEntries(header.map((name, index) => [name, values[index] ?? ''])));
+  }
+}
+
 export async function createTransfermarktCatalog(): Promise<{
   source: string;
   generatedAt: string;
   players: CandidateSnapshot[];
   managers: CandidateSnapshot[];
 }> {
-  const [playersRaw, clubsRaw] = await Promise.all([fetchCsv('players'), fetchCsv('clubs')]);
+  const clubsRaw = await fetchCsv('clubs');
   const clubs = new Map(
     clubsRaw
       .filter((club) => NINE_LEAGUES.has(club['domestic_competition_id'] ?? ''))
       .map((club) => [club['club_id']!, club]),
   );
   const updatedAt = new Date().toISOString();
-  const players: CandidateSnapshot[] = playersRaw.flatMap((entry) => {
+  const players: CandidateSnapshot[] = [];
+  await forEachPlayer((entry) => {
     const club = clubs.get(entry['current_club_id'] ?? '');
     const position = positionMap[entry['sub_position'] ?? ''];
     const value = integer(entry['market_value_in_eur'] ?? '');
@@ -164,40 +206,38 @@ export async function createTransfermarktCatalog(): Promise<{
       value <= 0 ||
       integer(entry['last_season'] ?? '0') < 2024
     )
-      return [];
+      return;
     const id = `transfermarkt:${entry['player_id']}`;
     const baseline = clamp(45 + Math.log10(value) * 7);
-    return [
-      {
-        id,
-        kind: 'PLAYER' as const,
-        fullName: entry['name']!,
-        commonName: entry['name']!,
-        age: age(entry['date_of_birth'] ?? ''),
-        nationality: entry['country_of_citizenship'] || 'Unknown',
-        club: entry['current_club_name'] || club['name']!,
-        league: club['domestic_competition_id']!,
-        positions: [position],
-        preferredPosition: position,
-        imageUrl: entry['image_url'] || null,
-        season: String(entry['last_season']),
-        appearances: 0,
-        starts: 0,
-        minutes: 0,
-        goals: 0,
-        assists: 0,
-        cleanSheets: 0,
-        currentFormRating: baseline,
-        availabilityRating: 75,
-        competitionStrength: 82,
-        lastFive: Array.from({ length: 5 }, () => baseline),
-        role: role(position, baseline),
-        valuation: valuation(value, updatedAt),
-        dataSource:
-          'Transfermarkt-derived open catalogue; profiles and market valuations; imported snapshot',
-        dataUpdatedAt: updatedAt,
-      },
-    ];
+    players.push({
+      id,
+      kind: 'PLAYER' as const,
+      fullName: entry['name']!,
+      commonName: entry['name']!,
+      age: age(entry['date_of_birth'] ?? ''),
+      nationality: entry['country_of_citizenship'] || 'Unknown',
+      club: entry['current_club_name'] || club['name']!,
+      league: club['domestic_competition_id']!,
+      positions: [position],
+      preferredPosition: position,
+      imageUrl: entry['image_url'] || null,
+      season: String(entry['last_season']),
+      appearances: 0,
+      starts: 0,
+      minutes: 0,
+      goals: 0,
+      assists: 0,
+      cleanSheets: 0,
+      currentFormRating: baseline,
+      availabilityRating: 75,
+      competitionStrength: 82,
+      lastFive: Array.from({ length: 5 }, () => baseline),
+      role: role(position, baseline),
+      valuation: valuation(value, updatedAt),
+      dataSource:
+        'Transfermarkt-derived open catalogue; profiles and market valuations; imported snapshot',
+      dataUpdatedAt: updatedAt,
+    });
   });
   const managers: CandidateSnapshot[] = [...clubs.values()].flatMap((club) => {
     const name = club['coach_name']?.trim();
