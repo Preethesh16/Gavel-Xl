@@ -167,15 +167,34 @@ abstract class HttpFootballProvider implements FootballDataProvider {
   protected abstract managersPath(): string;
 
   protected async load(path: string): Promise<unknown[]> {
-    const values: unknown[] = [];
-    for (let page = 1; page <= this.maxPages; page += 1) {
-      const url = new URL(path, this.baseUrl);
-      url.searchParams.set('page', String(page));
-      const result = await this.loadPage(url);
-      values.push(...result.values);
-      if (!result.hasMore) break;
+    const firstUrl = new URL(path, this.baseUrl);
+    firstUrl.searchParams.set('page', '1');
+    const first = await this.loadPage(firstUrl);
+    if (!first.hasMore) return first.values;
+
+    if (this.name !== 'sportmonks') {
+      const values = [...first.values];
+      for (let page = 2; page <= this.maxPages; page += 1) {
+        const url = new URL(path, this.baseUrl);
+        url.searchParams.set('page', String(page));
+        const result = await this.loadPage(url);
+        values.push(...result.values);
+        if (!result.hasMore) break;
+      }
+      return values;
     }
-    return values;
+
+    // Providers on some plans omit pagination metadata. Their full pages are
+    // independent, so fetch the bounded fallback window concurrently instead
+    // of serially blocking room creation on dozens of network round trips.
+    const pages = await Promise.all(
+      Array.from({ length: Math.max(0, this.maxPages - 1) }, (_, index) => {
+        const url = new URL(path, this.baseUrl);
+        url.searchParams.set('page', String(index + 2));
+        return this.loadPage(url);
+      }),
+    );
+    return [first.values, ...pages.map((page) => page.values)].flat();
   }
 
   private async loadPage(url: URL): Promise<{ values: unknown[]; hasMore: boolean }> {
@@ -192,15 +211,15 @@ abstract class HttpFootballProvider implements FootballDataProvider {
     const outer = record(payload);
     const sportmonksPagination = record(record(outer?.['meta'])?.['pagination']);
     const apiPaging = record(outer?.['paging']);
-  const hasMore =
+    const hasMore =
       typeof sportmonksPagination?.['has_more'] === 'boolean'
         ? sportmonksPagination['has_more']
         : number(sportmonksPagination?.['current_page'], 1) <
             number(sportmonksPagination?.['total_pages'], 1) ||
-        number(apiPaging?.['current'], 1) < number(apiPaging?.['total'], 1) ||
-        // Some Sportmonks plans omit pagination metadata but still return a
-        // full default page. Keep walking those pages until a short page.
-        (Array.isArray(arrayPayload(payload)) && arrayPayload(payload).length >= 25);
+          number(apiPaging?.['current'], 1) < number(apiPaging?.['total'], 1) ||
+          // Some Sportmonks plans omit pagination metadata but still return a
+          // full default page. Keep walking those pages until a short page.
+          (Array.isArray(arrayPayload(payload)) && arrayPayload(payload).length >= 25);
     return { values: arrayPayload(payload), hasMore };
   }
 
@@ -342,7 +361,10 @@ export class SportmonksProvider extends HttpFootballProvider {
   readonly #token: string;
 
   constructor(token: string, options: ProviderHttpOptions = {}) {
-    super(options, 'https://api.sportmonks.com/v3/football/');
+    super(
+      { ...options, maxPages: Math.min(options.maxPages ?? 20, 20) },
+      'https://api.sportmonks.com/v3/football/',
+    );
     this.#token = token;
   }
 
