@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import type { Position, RoleProfile, TacticalProfile, Valuation } from '@gavel-xi/shared';
 import type {
   DataHealthReport,
@@ -17,8 +18,9 @@ interface ProviderHttpOptions {
 export interface ApiFootballOptions extends ProviderHttpOptions {
   currentSeason?: number;
   leagueIds: number[];
-  /** Keep historical free-plan acquisition below the daily request allowance. */
+  /** Number of randomly selected real clubs to archive from each league. */
   teamsPerLeague?: number;
+  random?: () => number;
   now?: () => Date;
 }
 
@@ -620,6 +622,7 @@ export class ApiFootballProvider extends HttpFootballProvider {
   readonly #season: number;
   readonly #leagueIds: number[];
   readonly #teamsPerLeague: number;
+  readonly #random: () => number;
   #archive: Promise<{ players: NormalizedPlayer[]; managers: NormalizedManager[] }> | null = null;
 
   constructor(key: string, options: ApiFootballOptions) {
@@ -636,6 +639,7 @@ export class ApiFootballProvider extends HttpFootballProvider {
       throw new Error('ApiFootballProvider requires at least one configured league ID');
     }
     this.#teamsPerLeague = Math.max(1, Math.min(5, options.teamsPerLeague ?? 3));
+    this.#random = options.random ?? (() => randomInt(0, 1_000_000) / 1_000_000);
   }
 
   protected headers(): Record<string, string> {
@@ -665,8 +669,9 @@ export class ApiFootballProvider extends HttpFootballProvider {
   }
 
   async #fetchArchive(): Promise<{ players: NormalizedPlayer[]; managers: NormalizedManager[] }> {
-    // A league-wide players query is 50+ pages per league. Instead, archive a
-    // balanced set of actual 2024/25 table leaders and their real squads.
+    // A league-wide players query is 50+ pages per league. Instead, each fresh
+    // snapshot randomly samples real clubs from every configured league. The
+    // result is frozen for a game, so the player pool is varied yet fair.
     // Nine standings calls + 2 clubs x player/coach calls remains comfortably
     // below API-Football's free 100-request daily allowance.
     const selectedTeams = (
@@ -679,7 +684,12 @@ export class ApiFootballProvider extends HttpFootballProvider {
           const league = record(response[0])?.['league'];
           const tables = relationArray(record(league)?.['standings']);
           const rows = tables.flatMap((table) => relationArray(table));
-          return rows.slice(0, this.#teamsPerLeague).map((row) => ({
+          const selected = [...rows];
+          for (let index = selected.length - 1; index > 0; index -= 1) {
+            const other = Math.floor(this.#random() * (index + 1));
+            [selected[index], selected[other]] = [selected[other]!, selected[index]!];
+          }
+          return selected.slice(0, this.#teamsPerLeague).map((row) => ({
             team: record(record(row)?.['team']),
             leagueName: string(record(league)?.['name'], `League ${leagueId}`),
           }));

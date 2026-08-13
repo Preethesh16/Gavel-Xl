@@ -132,6 +132,7 @@ describe('data and infrastructure adapters', () => {
     const provider = new ApiFootballProvider('test-key', {
       fetch: fakeFetch,
       leagueIds: [39, 140],
+      random: () => 0,
       now: () => new Date('2026-01-20T00:00:00Z'),
     });
     const players = await provider.getActivePlayers();
