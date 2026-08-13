@@ -1,5 +1,6 @@
 import type { Position, RoleProfile, TacticalProfile, Valuation } from '@gavel-xi/shared';
 import type {
+  DataHealthReport,
   FootballDataProvider,
   NormalizedManager,
   NormalizedPlayer,
@@ -16,6 +17,10 @@ interface ProviderHttpOptions {
 export interface ApiFootballOptions extends ProviderHttpOptions {
   currentSeason?: number;
   leagueIds: number[];
+  now?: () => Date;
+}
+
+export interface SportmonksOptions extends ProviderHttpOptions {
   now?: () => Date;
 }
 
@@ -113,13 +118,23 @@ function normalizePosition(raw: unknown): Position | null {
     GOALKEEPER: 'GK',
     DEFENDER: 'CB',
     'CENTRE-BACK': 'CB',
+    'CENTRE BACK': 'CB',
     'LEFT-BACK': 'LB',
+    'LEFT BACK': 'LB',
     'RIGHT-BACK': 'RB',
+    'RIGHT BACK': 'RB',
+    'LEFT WING-BACK': 'LWB',
+    'LEFT WING BACK': 'LWB',
+    'RIGHT WING-BACK': 'RWB',
+    'RIGHT WING BACK': 'RWB',
     MIDFIELDER: 'CM',
+    'CENTRAL MIDFIELD': 'CM',
     'DEFENSIVE MIDFIELD': 'DM',
     'ATTACKING MIDFIELD': 'AM',
     ATTACKER: 'ST',
     FORWARD: 'ST',
+    'CENTRE FORWARD': 'ST',
+    'CENTER FORWARD': 'ST',
     'LEFT WINGER': 'LW',
     'RIGHT WINGER': 'RW',
   };
@@ -359,13 +374,20 @@ abstract class HttpFootballProvider implements FootballDataProvider {
 export class SportmonksProvider extends HttpFootballProvider {
   readonly name = 'sportmonks';
   readonly #token: string;
+  readonly #now: () => Date;
+  #loaded: Promise<{
+    players: NormalizedPlayer[];
+    managers: NormalizedManager[];
+    health: DataHealthReport;
+  }> | null = null;
 
-  constructor(token: string, options: ProviderHttpOptions = {}) {
+  constructor(token: string, options: SportmonksOptions = {}) {
     super(
       { ...options, maxPages: Math.min(options.maxPages ?? 20, 20) },
       'https://api.sportmonks.com/v3/football/',
     );
     this.#token = token;
+    this.#now = options.now ?? (() => new Date());
   }
 
   protected headers(): Record<string, string> {
@@ -373,14 +395,212 @@ export class SportmonksProvider extends HttpFootballProvider {
   }
 
   protected playersPath(): string {
-    // The unfiltered `/players` endpoint starts with historical records (often
-    // without a current team). Use Sportmonks' active feed so room snapshots
-    // contain current squads rather than retired/old catalogue entries.
-    return `players?api_token=${encodeURIComponent(this.#token)}&include=position;nationality;teams&per_page=100`;
+    // Deliberately unused by this provider. Current candidates come only from
+    // active league seasons -> teams -> squads, never `/players` catalogue.
+    return '';
   }
 
   protected managersPath(): string {
-    return `coaches?api_token=${encodeURIComponent(this.#token)}&include=nationality;teams`;
+    return '';
+  }
+
+  override async getActivePlayers(): Promise<NormalizedPlayer[]> {
+    return (await this.#currentSeasonData()).players;
+  }
+
+  override async getManagers(): Promise<NormalizedManager[]> {
+    return (await this.#currentSeasonData()).managers;
+  }
+
+  override async getCurrentSquad(teamId: string): Promise<NormalizedPlayer[]> {
+    return (await this.getActivePlayers()).filter((player) => player.club === teamId);
+  }
+
+  override async getPlayerSeasonStats(id: string): Promise<PlayerSeasonStats | null> {
+    const player = (await this.getActivePlayers()).find((candidate) => candidate.id === id);
+    return player === undefined
+      ? null
+      : {
+          candidateId: id,
+          season: player.season,
+          appearances: player.appearances,
+          starts: player.starts,
+          minutes: player.minutes,
+          goals: player.goals,
+          assists: player.assists,
+          cleanSheets: player.cleanSheets,
+          updatedAt: player.dataUpdatedAt,
+        };
+  }
+
+  async getDataHealth(): Promise<DataHealthReport> {
+    return (await this.#currentSeasonData()).health;
+  }
+
+  async #currentSeasonData() {
+    this.#loaded ??= this.#loadCurrentSeasonData();
+    return this.#loaded;
+  }
+
+  async #loadCurrentSeasonData(): Promise<{
+    players: NormalizedPlayer[];
+    managers: NormalizedManager[];
+    health: DataHealthReport;
+  }> {
+    const generatedAt = this.#now().toISOString();
+    const errors: string[] = [];
+    const leagues = await this.load(
+      `leagues?api_token=${encodeURIComponent(this.#token)}&per_page=50`,
+    );
+    const targetNames = new Set([
+      'Premier League',
+      'La Liga',
+      'Serie A',
+      'Bundesliga',
+      'Ligue 1',
+      'Primeira Liga',
+      'Eredivisie',
+      'Saudi Pro League',
+      'Süper Lig',
+      'Super Lig',
+    ]);
+    const selected = leagues
+      .map(record)
+      .filter((league): league is JsonRecord => league !== null)
+      .filter((league) => targetNames.has(string(league['name'])));
+    const leagueResults = await Promise.all(
+      selected.map(async (league) => {
+        const leagueId = string(league['id']);
+        const seasons = await this.load(
+          `seasons?api_token=${encodeURIComponent(this.#token)}&filters=seasonLeagues:${leagueId}&per_page=50`,
+        );
+        const current =
+          seasons.map(record).find((season) => season?.['is_current'] === true) ?? null;
+        if (current === null) {
+          errors.push(`${string(league['name'])}: no current season available`);
+          return { league, season: null, teams: [] as JsonRecord[] };
+        }
+        const teams = (
+          await this.load(
+            `teams/seasons/${string(current['id'])}?api_token=${encodeURIComponent(this.#token)}&per_page=50`,
+          )
+        )
+          .map(record)
+          .filter((team): team is JsonRecord => team !== null);
+        return { league, season: current, teams };
+      }),
+    );
+    const rosterJobs = leagueResults.flatMap(({ league, season, teams }) =>
+      season === null
+        ? []
+        : teams.map(async (team) => {
+            const seasonId = string(season['id']);
+            const teamName = string(team['name']);
+            const squad = await this.load(
+              `squads/seasons/${seasonId}/teams/${string(team['id'])}?api_token=${encodeURIComponent(this.#token)}&include=player.nationality;player.detailedPosition;player.statistics.details&per_page=50`,
+            );
+            return { league, season, teamName, squad };
+          }),
+    );
+    const rosters = await Promise.all(rosterJobs);
+    const players = new Map<string, NormalizedPlayer>();
+    for (const { league, season, teamName, squad } of rosters) {
+      for (const row of squad) {
+        const entry = record(row);
+        const player = record(entry?.['player']);
+        if (entry === null || player === null) continue;
+        const detailed = record(player['detailedposition']);
+        const position = normalizePosition(detailed?.['name'] ?? entry['position_id']);
+        if (position === null || position === 'MANAGER') continue;
+        const stats = relationArray(player['statistics'])
+          .map(record)
+          .find((value) => value !== null);
+        const normalized = this.playerFrom({
+          player: {
+            ...player,
+            position: detailed ?? player['position'],
+            team: { name: teamName },
+            season: string(season['name']),
+          },
+          statistics: stats === null ? [] : [stats],
+          league_name: string(league['name']),
+          updated_at: generatedAt,
+        });
+        if (normalized !== null)
+          players.set(normalized.id, { ...normalized, league: string(league['name']) });
+      }
+    }
+    // Coaches are fetched per current team; a coach that is not attached to an
+    // active selected-league team never enters a room snapshot.
+    const managers = new Map<string, NormalizedManager>();
+    for (const { league, season, teams } of leagueResults) {
+      if (season === null) continue;
+      for (const team of teams) {
+        try {
+          const detail = await this.load(
+            `teams/${string(team['id'])}?api_token=${encodeURIComponent(this.#token)}&include=coaches.nationality;coaches`,
+          );
+          const teamRecord = record(detail[0]);
+          for (const coach of relationArray(teamRecord?.['coaches'])) {
+            const raw = record(coach);
+            if (raw === null) continue;
+            const normalized = this.managerFrom({
+              ...raw,
+              team: { name: string(team['name']) },
+              season: string(season['name']),
+              league_name: string(league['name']),
+              updated_at: generatedAt,
+            });
+            if (normalized !== null)
+              managers.set(normalized.id, { ...normalized, league: string(league['name']) });
+          }
+        } catch (error) {
+          errors.push(`${string(team['name'])}: coach lookup failed`);
+        }
+      }
+    }
+    const values = [...players.values()];
+    const withStats = values.filter((player) => player.appearances > 0 || player.minutes > 0);
+    const coverage = Object.fromEntries(
+      [...new Set(values.map((player) => player.preferredPosition))].map((position) => [
+        position,
+        values.filter((player) => player.preferredPosition === position).length,
+      ]),
+    );
+    return {
+      players: values,
+      managers: [...managers.values()],
+      health: {
+        provider: this.name,
+        connected: true,
+        generatedAt,
+        leagues: leagueResults.map(({ league, season }) => ({
+          id: string(league['id']),
+          name: string(league['name']),
+          season: season === null ? null : string(season['name']),
+        })),
+        teamsFound: rosters.length,
+        activePlayersFound: values.length,
+        managersFound: managers.size,
+        statsCoveragePercent:
+          values.length === 0 ? 0 : Math.round((withStats.length / values.length) * 100),
+        positionCoverage: coverage,
+        valuationCoveragePercent: 0,
+        freshness: generatedAt,
+        samplePlayers: values.slice(0, 12).map((player) => ({
+          name: player.fullName,
+          club: player.club,
+          league: player.league,
+          position: player.preferredPosition,
+        })),
+        errors: [
+          ...errors,
+          ...(selected.length === 0
+            ? ['No requested major European league is available to this Sportmonks subscription.']
+            : []),
+        ],
+      },
+    };
   }
 }
 

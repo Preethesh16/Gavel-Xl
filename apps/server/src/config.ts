@@ -49,7 +49,7 @@ const configSchema = z
     FOOTBALL_DATA_PROVIDER: z.enum(['auto', 'demo', 'sportmonks', 'api-football']).default('auto'),
     SPORTMONKS_API_TOKEN: optionalNonemptyString,
     API_FOOTBALL_KEY: optionalNonemptyString,
-    API_FOOTBALL_LEAGUE_IDS: z.string().default('39,140,135,78,61'),
+    API_FOOTBALL_LEAGUE_IDS: z.string().default('39,140,135,78,61,94,88,307,203'),
     API_FOOTBALL_SEASON: z.coerce.number().int().min(2000).max(2200).optional(),
     VALUATION_PROVIDER: z.enum(['game-estimate']).default('game-estimate'),
     VALUATION_API_KEY: optionalNonemptyString,

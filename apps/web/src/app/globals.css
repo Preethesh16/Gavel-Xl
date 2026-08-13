@@ -1721,6 +1721,70 @@ summary:focus-visible {
   margin-right: 12px;
   color: var(--acid);
 }
+
+.data-health-page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 64px 24px;
+  color: var(--ink, #f4f5ee);
+}
+
+.data-health-page > header > p,
+.data-health-card em {
+  color: var(--lime, #c8ff21);
+  font-size: 0.75rem;
+  font-style: normal;
+  letter-spacing: 0.14em;
+}
+
+.data-health-page h1 {
+  font-size: clamp(2rem, 7vw, 4rem);
+  margin: 8px 0;
+}
+.data-health-card {
+  border: 1px solid rgba(209, 255, 38, 0.26);
+  margin-top: 28px;
+  padding: 26px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.data-health-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 20px;
+  text-transform: uppercase;
+}
+.data-health-card dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.data-health-card dl div {
+  border-left: 2px solid rgba(209, 255, 38, 0.5);
+  padding-left: 10px;
+}
+.data-health-card dt {
+  color: var(--muted, #9da39a);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+.data-health-card dd {
+  font-size: 1.3rem;
+  margin: 5px 0 0;
+}
+.data-health-leagues,
+.data-health-positions {
+  color: var(--muted, #9da39a);
+  line-height: 1.6;
+}
+.data-health-card ul {
+  padding-left: 20px;
+  line-height: 1.7;
+}
+.data-health-error {
+  color: #ff8d8d;
+  font-weight: 600;
+}
 .pitch-player__details {
   max-width: 140px;
   overflow: hidden;

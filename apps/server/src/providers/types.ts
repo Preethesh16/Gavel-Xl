@@ -23,12 +23,29 @@ export interface PlayerSeasonStats {
   updatedAt: string;
 }
 
+export interface DataHealthReport {
+  provider: string;
+  connected: boolean;
+  generatedAt: string;
+  leagues: Array<{ id: string; name: string; season: string | null }>;
+  teamsFound: number;
+  activePlayersFound: number;
+  managersFound: number;
+  statsCoveragePercent: number;
+  positionCoverage: Record<string, number>;
+  valuationCoveragePercent: number;
+  freshness: string | null;
+  samplePlayers: Array<{ name: string; club: string; league: string; position: string }>;
+  errors: string[];
+}
+
 export interface FootballDataProvider {
   readonly name: string;
   getActivePlayers(): Promise<NormalizedPlayer[]>;
   getPlayerSeasonStats(id: string): Promise<PlayerSeasonStats | null>;
   getCurrentSquad(teamId: string): Promise<NormalizedPlayer[]>;
   getManagers(): Promise<NormalizedManager[]>;
+  getDataHealth?(): Promise<DataHealthReport>;
 }
 
 export type ValuationResult = Valuation;

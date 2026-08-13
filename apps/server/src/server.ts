@@ -252,8 +252,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
     };
   }
   const publisher = new SocketPublisher(io);
+  const dataProviders = options.dataProviders ?? configuredProviders(config);
   const snapshotService = new FrozenSnapshotService({
-    providers: options.dataProviders ?? configuredProviders(config),
+    providers: dataProviders,
     valuationProvider: options.valuationProvider ?? new GameEstimateValuationProvider(),
     cache,
     snapshots: persistence,
@@ -295,6 +296,51 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
     cache: await cache.health(),
     now: new Date(now()).toISOString(),
   }));
+
+  if (config.NODE_ENV !== 'production' && (config.DEBUG_ROUTES ?? true)) {
+    app.get('/admin/data-health', async () => {
+      const reports = await Promise.all(
+        dataProviders.map(async (provider) => {
+          if (provider.getDataHealth === undefined)
+            return {
+              provider: provider.name,
+              connected: false,
+              generatedAt: new Date(now()).toISOString(),
+              leagues: [],
+              teamsFound: 0,
+              activePlayersFound: 0,
+              managersFound: 0,
+              statsCoveragePercent: 0,
+              positionCoverage: {},
+              valuationCoveragePercent: 0,
+              freshness: null,
+              samplePlayers: [],
+              errors: ['This provider does not expose a data-health diagnostic.'],
+            };
+          try {
+            return await provider.getDataHealth();
+          } catch (error) {
+            return {
+              provider: provider.name,
+              connected: false,
+              generatedAt: new Date(now()).toISOString(),
+              leagues: [],
+              teamsFound: 0,
+              activePlayersFound: 0,
+              managersFound: 0,
+              statsCoveragePercent: 0,
+              positionCoverage: {},
+              valuationCoveragePercent: 0,
+              freshness: null,
+              samplePlayers: [],
+              errors: [errorMessage(error)],
+            };
+          }
+        }),
+      );
+      return { reports };
+    });
+  }
 
   app.get<{ Params: { code: string } }>('/api/rooms/:code/results', async (request, reply) => {
     try {

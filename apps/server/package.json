@@ -22,6 +22,7 @@
   "scripts": {
     "build": "prisma generate --schema prisma/schema.prisma && tsc -p tsconfig.build.json",
     "dev": "tsx watch src/main.ts",
+    "data:health": "tsx src/data-health.ts",
     "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:validate": "prisma validate --schema prisma/schema.prisma",
