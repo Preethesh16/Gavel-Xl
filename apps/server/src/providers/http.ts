@@ -192,12 +192,15 @@ abstract class HttpFootballProvider implements FootballDataProvider {
     const outer = record(payload);
     const sportmonksPagination = record(record(outer?.['meta'])?.['pagination']);
     const apiPaging = record(outer?.['paging']);
-    const hasMore =
+  const hasMore =
       typeof sportmonksPagination?.['has_more'] === 'boolean'
         ? sportmonksPagination['has_more']
         : number(sportmonksPagination?.['current_page'], 1) <
             number(sportmonksPagination?.['total_pages'], 1) ||
-          number(apiPaging?.['current'], 1) < number(apiPaging?.['total'], 1);
+        number(apiPaging?.['current'], 1) < number(apiPaging?.['total'], 1) ||
+        // Some Sportmonks plans omit pagination metadata but still return a
+        // full default page. Keep walking those pages until a short page.
+        (Array.isArray(arrayPayload(payload)) && arrayPayload(payload).length >= 25);
     return { values: arrayPayload(payload), hasMore };
   }
 
@@ -348,7 +351,10 @@ export class SportmonksProvider extends HttpFootballProvider {
   }
 
   protected playersPath(): string {
-    return `players?api_token=${encodeURIComponent(this.#token)}&include=position;nationality;teams`;
+    // The unfiltered `/players` endpoint starts with historical records (often
+    // without a current team). Use Sportmonks' active feed so room snapshots
+    // contain current squads rather than retired/old catalogue entries.
+    return `players?api_token=${encodeURIComponent(this.#token)}&include=position;nationality;teams&per_page=100`;
   }
 
   protected managersPath(): string {
