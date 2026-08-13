@@ -242,6 +242,27 @@ abstract class HttpFootballProvider implements FootballDataProvider {
     }
     const payload: unknown = await response.json();
     const outer = record(payload);
+    // API-Football can report account suspension and entitlement failures in a
+    // 200 response with an empty `response` array. Treat those as failures
+    // rather than silently producing an empty player snapshot.
+    const providerErrors = outer?.['errors'];
+    if (
+      (Array.isArray(providerErrors) && providerErrors.length > 0) ||
+      (record(providerErrors) !== null && Object.keys(record(providerErrors)!).length > 0)
+    ) {
+      const detail = Array.isArray(providerErrors)
+        ? providerErrors
+            .map((entry) => string(entry))
+            .filter(Boolean)
+            .join('; ')
+        : Object.entries(record(providerErrors)!)
+            .map(([key, value]) => `${key}: ${string(value)}`)
+            .join('; ');
+      throw new ProviderUnavailableError(
+        this.name,
+        detail || 'provider returned an error response',
+      );
+    }
     const sportmonksPagination = record(record(outer?.['meta'])?.['pagination']);
     const apiPaging = record(outer?.['paging']);
     const hasMore =
