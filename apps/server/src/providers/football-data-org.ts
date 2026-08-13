@@ -63,7 +63,11 @@ function age(date: unknown): number {
 function positions(value: unknown): Position[] {
   const label = text(value).toLowerCase();
   if (label.includes('goal')) return ['GK'];
-  if (label.includes('defend')) return ['CB', 'LB', 'RB', 'LWB', 'RWB'];
+  // football-data.org uses detailed labels such as Centre-Back and Right-Back
+  // as well as the generic Defender. Its free squad feed cannot reliably fill
+  // every flank in a small random sample, so the verified defensive group is
+  // compatible with the formation's defensive slots.
+  if (label.includes('defend') || label.includes('back')) return ['CB', 'LB', 'RB', 'LWB', 'RWB'];
   if (label.includes('midfield')) return ['CM', 'DM', 'AM', 'LW', 'RW'];
   if (label.includes('wing')) return ['LW', 'RW', 'ST'];
   return ['ST', 'LW', 'RW'];

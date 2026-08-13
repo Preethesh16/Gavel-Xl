@@ -166,7 +166,7 @@ describe('data and infrastructure adapters', () => {
                 id: `${competition}-player`,
                 name: `${competition} Player`,
                 role: 'PLAYER',
-                position: 'Defender',
+                position: 'Centre-Back',
                 dateOfBirth: '2000-01-01',
                 nationality: 'France',
               },
@@ -191,6 +191,7 @@ describe('data and infrastructure adapters', () => {
     expect(players).toHaveLength(5);
     expect(managers).toHaveLength(5);
     expect(players.every((player) => player.club.endsWith('FC'))).toBe(true);
+    expect(players.every((player) => player.positions.includes('LB'))).toBe(true);
     expect(requests).toHaveLength(10);
   });
 
