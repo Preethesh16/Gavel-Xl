@@ -933,69 +933,63 @@ export class PrismaPersistence implements PersistenceAdapter {
 
   async putSnapshot(snapshot: FrozenSnapshot): Promise<void> {
     const write = snapshotWrite(snapshot);
-    await this.#client.$transaction(async (transaction) => {
-      await transaction.dataSnapshot.upsert({
-        where: { id: snapshot.id },
-        create: write,
-        update: {
-          provider: write.provider,
-          createdAt: write.createdAt,
-          sourceUpdatedAt: write.sourceUpdatedAt,
-          payload: write.payload,
-        },
-      });
-      for (const candidate of snapshot.candidates) {
-        const rowId = snapshotRowId(snapshot.id, candidate);
-        const valuation = candidate.valuation;
-        if (candidate.kind === 'PLAYER') {
-          await transaction.playerSnapshot.upsert({
-            where: {
-              snapshotId_canonicalId: { snapshotId: snapshot.id, canonicalId: candidate.id },
-            },
-            create: {
-              id: rowId,
+    await this.#client.$transaction(
+      async (transaction) => {
+        await transaction.dataSnapshot.upsert({
+          where: { id: snapshot.id },
+          create: write,
+          update: {
+            provider: write.provider,
+            createdAt: write.createdAt,
+            sourceUpdatedAt: write.sourceUpdatedAt,
+            payload: write.payload,
+          },
+        });
+        // A catalog snapshot can contain more than a thousand candidates. One
+        // upsert per row exceeds Prisma's default interactive transaction limit
+        // on Render's free Postgres. Snapshots are immutable, so bulk replacement
+        // is equivalent and finishes in a handful of queries.
+        await Promise.all([
+          transaction.playerSnapshot.deleteMany({ where: { snapshotId: snapshot.id } }),
+          transaction.managerSnapshot.deleteMany({ where: { snapshotId: snapshot.id } }),
+        ]);
+        const players = snapshot.candidates.filter((candidate) => candidate.kind === 'PLAYER');
+        const managers = snapshot.candidates.filter((candidate) => candidate.kind === 'MANAGER');
+        if (players.length > 0) {
+          await transaction.playerSnapshot.createMany({
+            data: players.map((candidate) => ({
+              id: snapshotRowId(snapshot.id, candidate),
               snapshotId: snapshot.id,
               canonicalId: candidate.id,
               payload: jsonClone(candidate, 'PlayerSnapshot payload') as Prisma.InputJsonValue,
               valuationValue:
-                valuation.valueEUR === null ? null : BigInt(Math.round(valuation.valueEUR)),
-              valuationType: valuation.type,
-              valuationSource: valuation.source,
-            },
-            update: {
-              payload: jsonClone(candidate, 'PlayerSnapshot payload') as Prisma.InputJsonValue,
-              valuationValue:
-                valuation.valueEUR === null ? null : BigInt(Math.round(valuation.valueEUR)),
-              valuationType: valuation.type,
-              valuationSource: valuation.source,
-            },
-          });
-        } else {
-          await transaction.managerSnapshot.upsert({
-            where: {
-              snapshotId_canonicalId: { snapshotId: snapshot.id, canonicalId: candidate.id },
-            },
-            create: {
-              id: rowId,
-              snapshotId: snapshot.id,
-              canonicalId: candidate.id,
-              payload: jsonClone(candidate, 'ManagerSnapshot payload') as Prisma.InputJsonValue,
-              reserveEstimate:
-                valuation.valueEUR === null ? null : BigInt(Math.round(valuation.valueEUR)),
-              valuationType: valuation.type,
-              valuationSource: valuation.source,
-            },
-            update: {
-              payload: jsonClone(candidate, 'ManagerSnapshot payload') as Prisma.InputJsonValue,
-              reserveEstimate:
-                valuation.valueEUR === null ? null : BigInt(Math.round(valuation.valueEUR)),
-              valuationType: valuation.type,
-              valuationSource: valuation.source,
-            },
+                candidate.valuation.valueEUR === null
+                  ? null
+                  : BigInt(Math.round(candidate.valuation.valueEUR)),
+              valuationType: candidate.valuation.type,
+              valuationSource: candidate.valuation.source,
+            })),
           });
         }
-      }
-    });
+        if (managers.length > 0) {
+          await transaction.managerSnapshot.createMany({
+            data: managers.map((candidate) => ({
+              id: snapshotRowId(snapshot.id, candidate),
+              snapshotId: snapshot.id,
+              canonicalId: candidate.id,
+              payload: jsonClone(candidate, 'ManagerSnapshot payload') as Prisma.InputJsonValue,
+              reserveEstimate:
+                candidate.valuation.valueEUR === null
+                  ? null
+                  : BigInt(Math.round(candidate.valuation.valueEUR)),
+              valuationType: candidate.valuation.type,
+              valuationSource: candidate.valuation.source,
+            })),
+          });
+        }
+      },
+      { timeout: 30_000 },
+    );
   }
 
   async getSnapshot(id: string): Promise<FrozenSnapshot | null> {
