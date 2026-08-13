@@ -68,4 +68,4 @@ attached product brief remains authoritative where this summary is terse.
 - [x] Playwright covers full playable game, refresh recovery, team check, checkpoint, final results, and metrics
 - [x] Desktop and mobile screenshots visually checked for clipping, overflow, hierarchy, and readability
 - [x] No significant browser console errors; lint, typecheck, unit/integration, E2E, and production builds pass
-- [ ] Final repository is committed and pushed successfully to `origin/main`
+- [x] Final repository is committed and pushed successfully to `origin/main`
