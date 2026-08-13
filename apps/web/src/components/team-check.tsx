@@ -26,6 +26,11 @@ function PitchPlayer({
         {entry ? initials(entry.candidate.commonName || entry.candidate.fullName) : label}
       </span>
       <b>{entry ? entry.candidate.commonName || entry.candidate.fullName : 'EMPTY'}</b>
+      {entry ? (
+        <small className="pitch-player__details">
+          {entry.candidate.age} · {entry.candidate.nationality} · {entry.candidate.club}
+        </small>
+      ) : null}
       {entry ? <small>{formatMoney(entry.purchasePriceEUR, true)}</small> : null}
     </div>
   );

@@ -55,6 +55,7 @@ interface UseGavelRoomValue {
   placeBid: (amountEUR: number) => Promise<ActionResult>;
   pass: () => Promise<ActionResult>;
   broadcastCheckpoint: () => Promise<ActionResult>;
+  togglePause: () => Promise<ActionResult>;
   leaveRoom: () => Promise<void>;
   clearError: () => void;
   pushNotice: (message: string) => void;
@@ -550,6 +551,16 @@ export function useGavelRoom(): UseGavelRoomValue {
     );
   }, [acceptRoom, emitAck, run]);
 
+  const togglePause = useCallback(async () => {
+    const activeRoom = roomRef.current;
+    if (!activeRoom) return { ok: false, message: 'Join a room first.' };
+    return run(
+      'pause',
+      () => emitAck<RoomView>('auction:pause', { roomCode: activeRoom.code }),
+      acceptRoom,
+    );
+  }, [acceptRoom, emitAck, run]);
+
   const leaveRoom = useCallback(async () => {
     const activeRoom = roomRef.current;
     if (activeRoom && socketRef.current?.connected)
@@ -593,6 +604,7 @@ export function useGavelRoom(): UseGavelRoomValue {
     placeBid,
     pass,
     broadcastCheckpoint,
+    togglePause,
     leaveRoom,
     clearError: () => setError(null),
     pushNotice: (message: string) => setNotice(message),

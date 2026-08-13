@@ -17,6 +17,7 @@ import type {
 interface TestState {
   projection: EngineProjection;
   nextWakeAt: number | null;
+  pausedAt?: number | null;
   allCandidates: CandidateSnapshot[];
   initialSettings: RoomSettingsInput;
 }
@@ -211,6 +212,20 @@ export class TestEngine implements AuthoritativeEngine {
 
   nextWakeAt(value: unknown): number | null {
     return state(value).nextWakeAt;
+  }
+
+  pause(value: unknown, now: number): EngineMutation {
+    const current = state(value);
+    current.pausedAt = now;
+    current.nextWakeAt = null;
+    return mutation(current);
+  }
+
+  resume(value: unknown, now: number): EngineMutation {
+    const current = state(value);
+    current.pausedAt = null;
+    current.nextWakeAt = now;
+    return mutation(current);
   }
 
   candidatesForDebug(value: unknown): CandidateSnapshot[] {

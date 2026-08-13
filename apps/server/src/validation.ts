@@ -31,5 +31,6 @@ export const socketSchemas = {
   'auction:pass': passSchema.strict(),
   'team:request': teamRequestPayloadSchema,
   'checkpoint:request': roomActionSchema.strict(),
+  'auction:pause': roomActionSchema.strict(),
   'presence:heartbeat': roomActionSchema.strict(),
 } as const;

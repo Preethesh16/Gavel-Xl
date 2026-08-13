@@ -53,6 +53,7 @@ export interface ClientToServerEvents {
     payload: { roomCode: string },
     callback: (ack: Ack<RoomView>) => void,
   ) => void;
+  'auction:pause': (payload: { roomCode: string }, callback: (ack: Ack<RoomView>) => void) => void;
   'presence:heartbeat': (payload: { roomCode: string }, callback: (ack: Ack) => void) => void;
 }
 

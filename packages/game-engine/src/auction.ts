@@ -604,6 +604,7 @@ export class GavelEngine {
       replay: [],
       replaySequence: 0,
       processedIdempotencyKeys: {},
+      pausedAt: null,
       nextWakeAt: null,
     };
     appendReplay(state, input.now, 'PREPARED', 'SEED COMMITTED', commitment);
@@ -614,6 +615,8 @@ export class GavelEngine {
 
   bid(source: unknown, memberId: string, input: BidInput, now: number): EngineCommandResult {
     const sourceState = source as EngineState;
+    if (sourceState.pausedAt !== null)
+      return rejected(sourceState, 'AUCTION_PAUSED', 'The host has paused the auction.');
     if (sourceState.phase !== 'BIDDING' || sourceState.currentLot === null) {
       return rejected(sourceState, 'AUCTION_CLOSED', 'Bidding is not open for this card.');
     }
@@ -693,6 +696,8 @@ export class GavelEngine {
 
   pass(source: unknown, memberId: string, input: PassInput, now: number): EngineCommandResult {
     const sourceState = source as EngineState;
+    if (sourceState.pausedAt !== null)
+      return rejected(sourceState, 'AUCTION_PAUSED', 'The host has paused the auction.');
     if (sourceState.phase !== 'BIDDING' || sourceState.currentLot === null) {
       return rejected(sourceState, 'AUCTION_CLOSED', 'Passing is not open for this card.');
     }
@@ -729,6 +734,7 @@ export class GavelEngine {
 
   advance(source: unknown, now: number): EngineMutation {
     const state = clone(source as EngineState);
+    if (state.pausedAt !== null) return mutation(state);
     if (state.nextWakeAt !== null && now < state.nextWakeAt) return mutation(state);
     let effects: EngineEffect[] = [];
     switch (state.phase) {
@@ -773,6 +779,27 @@ export class GavelEngine {
 
   nextWakeAt(source: unknown): number | null {
     return (source as EngineState).nextWakeAt;
+  }
+
+  pause(source: unknown, now: number): EngineMutation {
+    const state = clone(source as EngineState);
+    if (state.pausedAt !== null) return mutation(state);
+    state.pausedAt = now;
+    state.nextWakeAt = null;
+    return mutation(state);
+  }
+
+  resume(source: unknown, now: number): EngineMutation {
+    const state = clone(source as EngineState);
+    if (state.pausedAt === null) return mutation(state);
+    const elapsed = Math.max(0, now - state.pausedAt);
+    if (state.currentLot?.openedAt !== null && state.currentLot?.openedAt !== undefined)
+      state.currentLot.openedAt += elapsed;
+    if (state.currentLot?.endsAt !== null && state.currentLot?.endsAt !== undefined)
+      state.currentLot.endsAt += elapsed;
+    state.pausedAt = null;
+    state.nextWakeAt = state.currentLot?.endsAt ?? now;
+    return mutation(state);
   }
 
   candidatesForDebug(source: unknown): CandidateSnapshot[] {

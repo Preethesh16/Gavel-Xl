@@ -139,6 +139,7 @@ export default function Home() {
           onBid={game.placeBid}
           onPass={game.pass}
           onBroadcast={game.broadcastCheckpoint}
+          onTogglePause={game.togglePause}
         />
       ) : null}
       {room.phase === 'CHECKPOINT' ? (

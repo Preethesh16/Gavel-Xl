@@ -83,4 +83,6 @@ export interface AuthoritativeEngine {
   maximumLegalBid(state: unknown, memberId: string): number;
   nextWakeAt(state: unknown): number | null;
   candidatesForDebug(state: unknown): CandidateSnapshot[];
+  pause(state: unknown, now: number): EngineMutation;
+  resume(state: unknown, now: number): EngineMutation;
 }

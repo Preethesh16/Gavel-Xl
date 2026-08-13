@@ -42,6 +42,9 @@ export function roomView(room: StoredRoom, serverNow = Date.now()): RoomView {
     code: room.code,
     title: room.title,
     phase: room.phase,
+    isPaused:
+      room.hiddenState !== null &&
+      (room.hiddenState as { pausedAt?: number | null }).pausedAt != null,
     settings: structuredClone(room.settings),
     members: room.members.map((member) => memberView(room, member)),
     seedCommitment: room.seedCommitment,

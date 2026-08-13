@@ -465,6 +465,37 @@ export class RoomService {
     });
   }
 
+  async pause(roomCode: string, memberId: string): Promise<MutationOutcome> {
+    return this.#cache.withLock(`room:${roomCode}`, async () => {
+      const room = await this.#requireRoom(roomCode);
+      const member = this.#requireMember(room, memberId);
+      if (!member.isHost) throw new DomainError('NOT_HOST', 'Only the host can pause the auction.');
+      if (room.hiddenState === null)
+        throw new DomainError('AUCTION_CLOSED', 'No active auction to pause.');
+      const mutation = this.#engine.pause(room.hiddenState, this.#now());
+      await this.#applyMutation(room, mutation);
+      await this.#commit(room, 'AUCTION_PAUSED', { memberId });
+      this.#broadcastState(room);
+      return { room: roomView(room, this.#now()), nextWakeAt: mutation.nextWakeAt };
+    });
+  }
+
+  async resumeAuction(roomCode: string, memberId: string): Promise<MutationOutcome> {
+    return this.#cache.withLock(`room:${roomCode}`, async () => {
+      const room = await this.#requireRoom(roomCode);
+      const member = this.#requireMember(room, memberId);
+      if (!member.isHost)
+        throw new DomainError('NOT_HOST', 'Only the host can resume the auction.');
+      if (room.hiddenState === null)
+        throw new DomainError('AUCTION_CLOSED', 'No active auction to resume.');
+      const mutation = this.#engine.resume(room.hiddenState, this.#now());
+      await this.#applyMutation(room, mutation);
+      await this.#commit(room, 'AUCTION_RESUMED', { memberId });
+      this.#broadcastState(room);
+      return { room: roomView(room, this.#now()), nextWakeAt: mutation.nextWakeAt };
+    });
+  }
+
   async team(roomCode: string, memberId: string, scope: 'MY' | 'ALL'): Promise<TeamResponse> {
     const room = await this.#requireRoom(roomCode);
     this.#requireMember(room, memberId);

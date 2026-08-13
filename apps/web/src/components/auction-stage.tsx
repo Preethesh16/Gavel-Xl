@@ -21,6 +21,7 @@ interface AuctionStageProps {
   onBid: (amountEUR: number) => Promise<{ ok: boolean }>;
   onPass: () => Promise<{ ok: boolean }>;
   onBroadcast: () => Promise<{ ok: boolean }>;
+  onTogglePause: () => Promise<{ ok: boolean }>;
 }
 
 function useCountdown(endsAt: number | null | undefined, clockOffset: number): number {
@@ -52,12 +53,13 @@ export function AuctionStage({
   onBid,
   onPass,
   onBroadcast,
+  onTogglePause,
 }: AuctionStageProps) {
   const [teamOpen, setTeamOpen] = useState(false);
   const [customBid, setCustomBid] = useState('');
   const lot = room.currentLot;
   const remaining = useCountdown(lot?.endsAt, clockOffset);
-  const isBidding = room.phase === 'BIDDING' && Boolean(lot?.openedAt);
+  const isBidding = room.phase === 'BIDDING' && Boolean(lot?.openedAt) && !room.isPaused;
   const eligible = Boolean(lot?.eligibleMemberIds.includes(me.id)) && !me.isSpectator;
   const hasPassed = Boolean(lot?.passedMemberIds.includes(me.id));
   const limitReady = room.settings.budgetMode === 'CHAOS' || maxSafeBidEUR !== null;
@@ -204,16 +206,20 @@ export function AuctionStage({
               className={`timer-orb ${remaining <= 3_000 && isBidding ? 'timer-orb--urgent' : ''}`}
               style={{ '--timer-progress': timerRatio } as React.CSSProperties}
             >
-              <span data-testid="auction-timer">{isBidding ? formatClock(remaining) : '—'}</span>
+              <span data-testid="auction-timer">
+                {room.isPaused ? 'PAUSED' : isBidding ? formatClock(remaining) : '—'}
+              </span>
               <small>SECONDS</small>
             </div>
             <div>
               <p>
-                {isBidding
-                  ? remaining <= 3_000
-                    ? 'FINAL CALL'
-                    : 'BIDDING LIVE'
-                  : room.phase.replaceAll('_', ' ')}
+                {room.isPaused
+                  ? 'Auction paused by the host.'
+                  : isBidding
+                    ? remaining <= 3_000
+                      ? 'FINAL CALL'
+                      : 'BIDDING LIVE'
+                    : room.phase.replaceAll('_', ' ')}
               </p>
               <h2>
                 {leader ? (
@@ -349,6 +355,11 @@ export function AuctionStage({
       </section>
 
       <StatusDock room={room} me={me} maxBid={maxBid} />
+      {me.isHost ? (
+        <button className="auction-pause-button" type="button" onClick={() => void onTogglePause()}>
+          {room.isPaused ? 'RESUME AUCTION' : 'PAUSE AUCTION'}
+        </button>
+      ) : null}
       <AuctionOutcome room={room} moment={moment} />
       {teamOpen ? (
         <TeamCheck

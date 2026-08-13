@@ -568,6 +568,24 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
       }
     });
 
+    socket.on('auction:pause', async (raw, callback) => {
+      try {
+        const input = parsed(socketSchemas['auction:pause'], raw);
+        const actor = session(socket, input.roomCode);
+        const room = await roomService.getRoom(input.roomCode);
+        const result = room.isPaused
+          ? await roomService.resumeAuction(input.roomCode, actor.memberId)
+          : await roomService.pause(input.roomCode, actor.memberId);
+        scheduler.schedule(
+          input.roomCode,
+          result.nextWakeAt === null ? null : { wakeAt: result.nextWakeAt },
+        );
+        safeCallback(callback, { ok: true, data: result.room });
+      } catch (error) {
+        safeCallback(callback, { ok: false, error: errorMessage(error) });
+      }
+    });
+
     socket.on('presence:heartbeat', async (raw, callback) => {
       try {
         const input = parsed(socketSchemas['presence:heartbeat'], raw);

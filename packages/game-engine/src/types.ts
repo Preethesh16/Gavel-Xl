@@ -72,6 +72,7 @@ export interface EngineState {
   replay: ReplayEventView[];
   replaySequence: number;
   processedIdempotencyKeys: Record<string, number>;
+  pausedAt: number | null;
   nextWakeAt: number | null;
 }
 

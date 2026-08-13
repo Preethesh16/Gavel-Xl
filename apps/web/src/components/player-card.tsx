@@ -62,6 +62,11 @@ export function PlayerCard({ lot, phase }: { lot: PublicLot; phase: string }) {
           {player.club} · {player.nationality}
         </p>
         <h2 data-testid="revealed-player-name">{player.commonName || player.fullName}</h2>
+        <div className="player-card__bio" data-testid="player-details">
+          <span>{player.age} years</span>
+          <span>{player.nationality}</span>
+          <span>{player.club}</span>
+        </div>
         <div className="player-card__numbers">
           <div>
             <span>{marketLabel}</span>

@@ -218,6 +218,7 @@ export interface RoomView {
   code: string;
   title: string;
   phase: GamePhase;
+  isPaused: boolean;
   settings: RoomSettingsInput;
   members: RoomMemberView[];
   seedCommitment: string | null;

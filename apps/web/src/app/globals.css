@@ -1706,6 +1706,41 @@ summary:focus-visible {
   text-transform: uppercase;
   white-space: nowrap;
 }
+.player-card__bio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 8px;
+  color: #d5ddd3;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.player-card__bio span + span::before {
+  content: '·';
+  margin-right: 12px;
+  color: var(--acid);
+}
+.pitch-player__details {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.auction-pause-button {
+  position: fixed;
+  z-index: 20;
+  right: 22px;
+  bottom: 92px;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--acid);
+  background: rgba(18, 25, 12, 0.94);
+  color: var(--acid);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
 .player-card__numbers {
   margin-top: 14px;
   padding-top: 12px;
@@ -4631,6 +4666,34 @@ summary:focus-visible {
   .result-personal {
     display: none;
   }
+}
+
+/* Readability baseline: the original display scale was too small outside the hero. */
+body {
+  font-size: 16px;
+}
+.room-header__identity button,
+.room-header__me,
+.lot-heading > span,
+.lot-heading h1,
+.auction-console__timer h2,
+.auction-console__timer p,
+.bid-controls > p,
+.safe-bid,
+.status-dock strong,
+.team-board header h3,
+.team-board__manager b,
+.team-check__header h2,
+.segmented-tabs button,
+.pitch-player b {
+  font-size: 1.12em;
+}
+.team-board footer span,
+.team-board footer b,
+.team-board__manager span,
+.team-board__manager small,
+.pitch-player small {
+  font-size: 1.08em;
 }
 
 @media (max-width: 480px) {
