@@ -1,0 +1,14 @@
+.DS_Store
+.env
+.env.local
+.next/
+.turbo/
+coverage/
+dist/
+*.tsbuildinfo
+node_modules/
+playwright-report/
+test-results/
+*.log
+apps/server/data/*.json
+!apps/server/data/.gitkeep

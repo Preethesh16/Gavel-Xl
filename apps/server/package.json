@@ -1,0 +1,53 @@
+{
+  "name": "@gavel-xi/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "import": "./dist/contracts.js"
+    },
+    "./providers": {
+      "types": "./dist/providers/index.d.ts",
+      "import": "./dist/providers/index.js"
+    }
+  },
+  "scripts": {
+    "build": "prisma generate --schema prisma/schema.prisma && tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/main.ts",
+    "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:validate": "prisma validate --schema prisma/schema.prisma",
+    "start": "node dist/main.js",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@gavel-xi/game-engine": "workspace:*",
+    "@gavel-xi/shared": "workspace:*",
+    "@prisma/client": "6.19.3",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "dotenv": "17.4.2",
+    "fastify": "^5.6.0",
+    "ioredis": "^5.7.0",
+    "socket.io": "^4.8.1",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.30",
+    "prisma": "6.19.3",
+    "socket.io-client": "^4.8.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@gavel-xi/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "pnpm --filter @gavel-xi/shared build",
+    "dev": "next dev --turbopack --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@gavel-xi/shared": "workspace:*",
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "typescript": "^5.9.2",
+    "vitest": "4.1.10"
+  }
+}

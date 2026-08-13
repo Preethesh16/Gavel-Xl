@@ -1,0 +1,339 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoomPhase {
+  LOBBY
+  PREPARING_DATA
+  GENERATING_POOL
+  READY
+  REVEALING
+  BIDDING
+  RESOLVING
+  SOLD
+  UNSOLD
+  FORCED_ASSIGNMENT
+  CHECKPOINT
+  NEXT_LOT
+  FINALIZING
+  EVALUATING
+  RESULTS
+  COMPLETE
+}
+
+enum CandidateKind {
+  PLAYER
+  MANAGER
+}
+
+enum AcquisitionKind {
+  AUCTION
+  FORCED
+  EMERGENCY
+}
+
+model Room {
+  id          String       @id @default(cuid())
+  code        String       @unique @db.VarChar(6)
+  title       String
+  phase       RoomPhase    @default(LOBBY)
+  /// Optimistic concurrency fence; mirrors StoredRoom.eventSequence.
+  revision    Int          @default(0)
+  /// Canonical StoredRoom document used to recover every authoritative field after restart.
+  state       Json
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  completedAt DateTime?
+  members     RoomMember[]
+  game        Game?
+  events      RoomEvent[]
+}
+
+/// Append-only room event stream. Lobby events exist before a normalized Game row does.
+model RoomEvent {
+  id       String   @id
+  roomCode String   @db.VarChar(6)
+  room     Room     @relation(fields: [roomCode], references: [code], onDelete: Cascade)
+  sequence Int
+  type     String
+  payload  Json
+  at       DateTime
+
+  @@unique([roomCode, sequence])
+  @@index([roomCode, at])
+}
+
+model RoomMember {
+  id                   String         @id @default(uuid())
+  roomId               String
+  room                 Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  displayName          String         @db.VarChar(24)
+  avatar               String
+  color                String
+  isHost               Boolean        @default(false)
+  isReady              Boolean        @default(false)
+  isSpectator          Boolean        @default(false)
+  joinedAt             DateTime       @default(now())
+  lastSeenAt           DateTime       @default(now())
+  budgetEUR            BigInt
+  spentEUR             BigInt         @default(0)
+  emergencyAllocations Int            @default(0)
+  squadEntries         SquadEntry[]
+  bids                 Bid[]
+  ledger               BudgetLedger[]
+  wonLots              AuctionLot[]
+
+  @@index([roomId, joinedAt])
+}
+
+model Game {
+  id              String          @id @default(cuid())
+  roomId          String          @unique
+  room            Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  seedCommitment  String
+  revealedSeed    String?
+  snapshotId      String
+  snapshot        DataSnapshot    @relation(fields: [snapshotId], references: [id])
+  auctionSequence Int             @default(0)
+  resolvedCycles  Int             @default(0)
+  hiddenState     Json
+  settings        GameSettings?
+  cycles          PositionCycle[]
+  lots            AuctionLot[]
+  squadEntries    SquadEntry[]
+  checkpoints     Checkpoint[]
+  evaluation      Evaluation?
+  events          GameEvent[]
+  createdAt       DateTime        @default(now())
+  completedAt     DateTime?
+}
+
+model GameSettings {
+  id                  String  @id @default(cuid())
+  gameId              String  @unique
+  game                Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  formationName       String
+  budgetEUR           BigInt
+  bidIncrementEUR     BigInt
+  auctionTimerSeconds Int
+  revealSeconds       Int
+  antiSnipeSeconds    Int
+  soundEnabled        Boolean
+  budgetMode          String
+  formLookback        String
+}
+
+model Formation {
+  id        String @id @default(cuid())
+  name      String @unique
+  slotsJson Json
+}
+
+model DataSnapshot {
+  id              String            @id
+  provider        String
+  createdAt       DateTime          @default(now())
+  sourceUpdatedAt DateTime
+  /// Complete immutable FrozenSnapshot document; normalized rows remain available for analytics.
+  payload         Json
+  players         PlayerSnapshot[]
+  managers        ManagerSnapshot[]
+  games           Game[]
+}
+
+model PlayerSnapshot {
+  id              String       @id @default(cuid())
+  snapshotId      String
+  snapshot        DataSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  canonicalId     String
+  payload         Json
+  valuationValue  BigInt?
+  valuationType   String
+  valuationSource String
+  candidates      Candidate[]
+
+  @@unique([snapshotId, canonicalId])
+}
+
+model ManagerSnapshot {
+  id              String       @id @default(cuid())
+  snapshotId      String
+  snapshot        DataSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  canonicalId     String
+  payload         Json
+  reserveEstimate BigInt?
+  valuationType   String
+  valuationSource String
+  candidates      Candidate[]
+
+  @@unique([snapshotId, canonicalId])
+}
+
+model PositionCycle {
+  id           String       @id
+  gameId       String
+  game         Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  position     String
+  slotIndex    Int
+  revealOrder  Int
+  resolved     Boolean      @default(false)
+  candidates   Candidate[]
+  squadEntries SquadEntry[]
+
+  @@unique([gameId, position, slotIndex])
+}
+
+model Candidate {
+  id                String           @id
+  cycleId           String
+  cycle             PositionCycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  kind              CandidateKind
+  playerSnapshotId  String?
+  playerSnapshot    PlayerSnapshot?  @relation(fields: [playerSnapshotId], references: [id])
+  managerSnapshotId String?
+  managerSnapshot   ManagerSnapshot? @relation(fields: [managerSnapshotId], references: [id])
+  tier              String
+  openingBidEUR     BigInt
+  revealIndex       Int
+  lots              AuctionLot[]
+  squadEntry        SquadEntry?
+}
+
+model AuctionLot {
+  id                    String       @id
+  gameId                String
+  game                  Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  candidateId           String
+  candidate             Candidate    @relation(fields: [candidateId], references: [id])
+  sequence              Int
+  openingBidEUR         BigInt
+  originalOpeningBidEUR BigInt
+  returnCount           Int          @default(0)
+  openedAt              DateTime?
+  endsAt                DateTime?
+  resolvedAt            DateTime?
+  outcome               String?
+  winnerMemberId        String?
+  winnerMember          RoomMember?  @relation(fields: [winnerMemberId], references: [id])
+  soldPriceEUR          BigInt?
+  bids                  Bid[]
+  unsoldEntry           UnsoldEntry?
+
+  @@unique([gameId, sequence])
+}
+
+model Bid {
+  id              String     @id @default(cuid())
+  lotId           String
+  lot             AuctionLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  memberId        String
+  member          RoomMember @relation(fields: [memberId], references: [id])
+  amountEUR       BigInt
+  auctionSequence Int
+  idempotencyKey  String     @unique
+  accepted        Boolean
+  rejectionCode   String?
+  createdAt       DateTime   @default(now())
+}
+
+model UnsoldEntry {
+  id               String     @id @default(cuid())
+  lotId            String     @unique
+  lot              AuctionLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  returnReserveEUR BigInt
+  returnCount      Int
+  requeuedAt       DateTime   @default(now())
+}
+
+model SquadEntry {
+  id               String          @id
+  gameId           String
+  game             Game            @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  memberId         String
+  member           RoomMember      @relation(fields: [memberId], references: [id])
+  cycleId          String
+  cycle            PositionCycle   @relation(fields: [cycleId], references: [id])
+  slotId           String
+  candidateId      String          @unique
+  candidate        Candidate       @relation(fields: [candidateId], references: [id])
+  purchasePriceEUR BigInt
+  marketValueEUR   BigInt?
+  acquisition      AcquisitionKind
+  acquiredAt       DateTime        @default(now())
+
+  @@unique([gameId, memberId, cycleId])
+  @@unique([gameId, candidateId])
+}
+
+model BudgetLedger {
+  id          String     @id @default(cuid())
+  memberId    String
+  member      RoomMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  amountEUR   BigInt
+  balanceEUR  BigInt
+  reason      String
+  referenceId String?
+  createdAt   DateTime   @default(now())
+}
+
+model Checkpoint {
+  id             String   @id @default(cuid())
+  gameId         String
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  checkpointNo   Int
+  resolvedCycles Int
+  payload        Json
+  createdAt      DateTime @default(now())
+
+  @@unique([gameId, checkpointNo])
+}
+
+model Evaluation {
+  id          String        @id @default(cuid())
+  gameId      String        @unique
+  game        Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  overallJson Json
+  createdAt   DateTime      @default(now())
+  metrics     MetricScore[]
+  awards      Award[]
+}
+
+model MetricScore {
+  id           String     @id @default(cuid())
+  evaluationId String
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  metricIndex  Int
+  category     String
+  metricName   String
+  scores       Json
+  winnerIds    Json
+
+  @@unique([evaluationId, metricIndex])
+}
+
+model Award {
+  id           String     @id @default(cuid())
+  evaluationId String
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  title        String
+  memberId     String
+  detail       String
+}
+
+model GameEvent {
+  id       String   @id
+  gameId   String
+  game     Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  sequence Int
+  type     String
+  payload  Json
+  at       DateTime
+
+  @@unique([gameId, sequence])
+  @@index([gameId, at])
+}
