@@ -638,7 +638,7 @@ export class ApiFootballProvider extends HttpFootballProvider {
     if (this.#leagueIds.length === 0) {
       throw new Error('ApiFootballProvider requires at least one configured league ID');
     }
-    this.#teamsPerLeague = Math.max(1, Math.min(5, options.teamsPerLeague ?? 3));
+    this.#teamsPerLeague = Math.max(1, Math.min(5, options.teamsPerLeague ?? 1));
     this.#random = options.random ?? (() => randomInt(0, 1_000_000) / 1_000_000);
   }
 
@@ -672,43 +672,46 @@ export class ApiFootballProvider extends HttpFootballProvider {
     // A league-wide players query is 50+ pages per league. Instead, each fresh
     // snapshot randomly samples real clubs from every configured league. The
     // result is frozen for a game, so the player pool is varied yet fair.
-    // Nine standings calls + 2 clubs x player/coach calls remains comfortably
-    // below API-Football's free 100-request daily allowance.
-    const selectedTeams = (
-      await Promise.all(
-        this.#leagueIds.map(async (leagueId) => {
-          const response = await this.load(
-            `standings?league=${leagueId}&season=${this.#season}`,
-            false,
-          );
-          const league = record(response[0])?.['league'];
-          const tables = relationArray(record(league)?.['standings']);
-          const rows = tables.flatMap((table) => relationArray(table));
-          const selected = [...rows];
-          for (let index = selected.length - 1; index > 0; index -= 1) {
-            const other = Math.floor(this.#random() * (index + 1));
-            [selected[index], selected[other]] = [selected[other]!, selected[index]!];
-          }
-          return selected.slice(0, this.#teamsPerLeague).map((row) => ({
-            team: record(record(row)?.['team']),
+    // One random club from each league costs ~45 requests at most (including
+    // roster pages), safely below the free 100/day allowance. Requests are
+    // deliberately serial: API-Football rejects large concurrent bursts with
+    // HTTP 429 even when the daily allowance remains.
+    const selectedTeams: Array<{ team: JsonRecord; leagueName: string }> = [];
+    for (const leagueId of this.#leagueIds) {
+      const response = await this.load(
+        `standings?league=${leagueId}&season=${this.#season}`,
+        false,
+      );
+      const league = record(response[0])?.['league'];
+      const tables = relationArray(record(league)?.['standings']);
+      const rows = tables.flatMap((table) => relationArray(table));
+      const selected = [...rows];
+      for (let index = selected.length - 1; index > 0; index -= 1) {
+        const other = Math.floor(this.#random() * (index + 1));
+        [selected[index], selected[other]] = [selected[other]!, selected[index]!];
+      }
+      for (const row of selected.slice(0, this.#teamsPerLeague)) {
+        const team = record(record(row)?.['team']);
+        if (team !== null)
+          selectedTeams.push({
+            team,
             leagueName: string(record(league)?.['name'], `League ${leagueId}`),
-          }));
-        }),
-      )
-    )
-      .flat()
-      .filter((entry): entry is { team: JsonRecord; leagueName: string } => entry.team !== null);
+          });
+      }
+    }
 
-    const values = await Promise.all(
-      selectedTeams.map(async ({ team, leagueName }) => {
-        const teamId = string(team['id']);
-        const [players, managers] = await Promise.all([
-          this.load(`players?team=${teamId}&season=${this.#season}`),
-          this.load(`coachs?team=${teamId}`, false),
-        ]);
-        return { team, leagueName, players, managers };
-      }),
-    );
+    const values: Array<{
+      team: JsonRecord;
+      leagueName: string;
+      players: unknown[];
+      managers: unknown[];
+    }> = [];
+    for (const { team, leagueName } of selectedTeams) {
+      const teamId = string(team['id']);
+      const players = await this.load(`players?team=${teamId}&season=${this.#season}`);
+      const managers = await this.load(`coachs?team=${teamId}`, false);
+      values.push({ team, leagueName, players, managers });
+    }
     const players = new Map<string, NormalizedPlayer>();
     const managers = new Map<string, NormalizedManager>();
     const updatedAt = new Date().toISOString();
