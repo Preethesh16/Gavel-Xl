@@ -8,6 +8,7 @@ import {
   DevelopmentSnapshotProvider,
   DevelopmentValuationProvider,
   FrozenSnapshotService,
+  SportmonksProvider,
   type FootballDataProvider,
 } from '../src/providers/index.js';
 import { SessionTokenService } from '../src/security.js';
@@ -107,6 +108,85 @@ describe('data and infrastructure adapters', () => {
     expect(
       requests.map((url) => `${url.searchParams.get('league')}:${url.searchParams.get('page')}`),
     ).toEqual(['39:1', '140:1', '39:2']);
+  });
+
+  it('builds Sportmonks candidates from current league squads, never the player catalogue', async () => {
+    const requests: string[] = [];
+    const fakeFetch: typeof fetch = async (input) => {
+      const url = new URL(
+        typeof input === 'string' ? input : input instanceof URL ? input : input.url,
+      );
+      requests.push(url.pathname);
+      const data = (() => {
+        if (url.pathname.endsWith('/leagues')) return [{ id: 8, name: 'Premier League' }];
+        if (url.pathname.endsWith('/seasons'))
+          return [{ id: 99, name: '2026/2027', is_current: true }];
+        if (url.pathname.endsWith('/teams/seasons/99'))
+          return [
+            {
+              id: 101,
+              name: 'Current FC',
+              coaches: [
+                {
+                  active: true,
+                  coach: {
+                    id: 500,
+                    name: 'Current Coach',
+                    nationality: { name: 'England' },
+                    date_of_birth: '1980-01-01',
+                  },
+                },
+              ],
+            },
+          ];
+        if (url.pathname.endsWith('/squads/seasons/99/teams/101'))
+          return [
+            {
+              player: {
+                id: 1,
+                name: 'Current Goalkeeper',
+                date_of_birth: '2000-01-01',
+                nationality: { name: 'England' },
+                detailedposition: { name: 'Goalkeeper' },
+                statistics: [],
+              },
+            },
+            {
+              player: {
+                id: 2,
+                name: 'Current Left Back',
+                date_of_birth: '2001-01-01',
+                nationality: { name: 'Spain' },
+                detailedposition: { name: 'Left Back' },
+                statistics: [],
+              },
+            },
+          ];
+        throw new Error(`Unexpected endpoint ${url.pathname}`);
+      })();
+      return new Response(JSON.stringify({ data }), { status: 200 });
+    };
+    const provider = new SportmonksProvider('token', {
+      fetch: fakeFetch,
+      now: () => new Date('2026-08-13T00:00:00Z'),
+    });
+
+    const [players, managers, health] = await Promise.all([
+      provider.getActivePlayers(),
+      provider.getManagers(),
+      provider.getDataHealth(),
+    ]);
+
+    expect(
+      players.map((player) => [player.fullName, player.preferredPosition, player.club]),
+    ).toEqual([
+      ['Current Goalkeeper', 'GK', 'Current FC'],
+      ['Current Left Back', 'LB', 'Current FC'],
+    ]);
+    expect(managers.map((manager) => manager.fullName)).toEqual(['Current Coach']);
+    expect(health.leagues).toEqual([{ id: '8', name: 'Premier League', season: '2026/2027' }]);
+    expect(health.teamsFound).toBe(1);
+    expect(requests.some((path) => path.endsWith('/players'))).toBe(false);
   });
 
   it('uses alternate provider after failure and reuses a frozen snapshot consistently', async () => {

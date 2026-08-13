@@ -482,7 +482,7 @@ export class SportmonksProvider extends HttpFootballProvider {
         }
         const teams = (
           await this.load(
-            `teams/seasons/${string(current['id'])}?api_token=${encodeURIComponent(this.#token)}&per_page=50`,
+            `teams/seasons/${string(current['id'])}?api_token=${encodeURIComponent(this.#token)}&include=coaches.coach.nationality&per_page=50`,
           )
         )
           .map(record)
@@ -499,7 +499,7 @@ export class SportmonksProvider extends HttpFootballProvider {
             const squad = await this.load(
               `squads/seasons/${seasonId}/teams/${string(team['id'])}?api_token=${encodeURIComponent(this.#token)}&include=player.nationality;player.detailedPosition;player.statistics.details&per_page=50`,
             );
-            return { league, season, teamName, squad };
+            return { league, season, team, teamName, squad };
           }),
     );
     const rosters = await Promise.all(rosterJobs);
@@ -530,32 +530,25 @@ export class SportmonksProvider extends HttpFootballProvider {
           players.set(normalized.id, { ...normalized, league: string(league['name']) });
       }
     }
-    // Coaches are fetched per current team; a coach that is not attached to an
-    // active selected-league team never enters a room snapshot.
+    // Only coaches attached to an active selected-league team enter the room
+    // snapshot; the global coach catalogue is intentionally never used.
     const managers = new Map<string, NormalizedManager>();
     for (const { league, season, teams } of leagueResults) {
       if (season === null) continue;
       for (const team of teams) {
-        try {
-          const detail = await this.load(
-            `teams/${string(team['id'])}?api_token=${encodeURIComponent(this.#token)}&include=coaches.nationality;coaches`,
-          );
-          const teamRecord = record(detail[0]);
-          for (const coach of relationArray(teamRecord?.['coaches'])) {
-            const raw = record(coach);
-            if (raw === null) continue;
-            const normalized = this.managerFrom({
-              ...raw,
-              team: { name: string(team['name']) },
-              season: string(season['name']),
-              league_name: string(league['name']),
-              updated_at: generatedAt,
-            });
-            if (normalized !== null)
-              managers.set(normalized.id, { ...normalized, league: string(league['name']) });
-          }
-        } catch (error) {
-          errors.push(`${string(team['name'])}: coach lookup failed`);
+        for (const assignment of relationArray(team['coaches'])) {
+          const coachAssignment = record(assignment);
+          const raw = record(coachAssignment?.['coach']);
+          if (coachAssignment?.['active'] !== true || raw === null) continue;
+          const normalized = this.managerFrom({
+            ...raw,
+            team: { name: string(team['name']) },
+            season: string(season['name']),
+            league_name: string(league['name']),
+            updated_at: generatedAt,
+          });
+          if (normalized !== null)
+            managers.set(normalized.id, { ...normalized, league: string(league['name']) });
         }
       }
     }
