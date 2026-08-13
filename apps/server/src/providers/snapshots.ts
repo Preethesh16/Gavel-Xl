@@ -30,11 +30,14 @@ const SUPPORTED_PARTICIPANT_COUNTS = [2, 3, 4, 5, 6, 7, 8] as const;
  * pool generator against every supported room shape before freezing a snapshot,
  * so a structurally incomplete provider falls through to the next adapter.
  */
-export function assertSnapshotPoolViable(candidates: CandidateSnapshot[]): void {
+export function assertSnapshotPoolViable(
+  candidates: CandidateSnapshot[],
+  participantCounts: readonly number[] = SUPPORTED_PARTICIPANT_COUNTS,
+): void {
   const createdAt = new Date(0).toISOString();
   for (const formation of FORMATION_NAMES) {
     const settings = roomSettingsSchema.parse({ formation });
-    for (const participantCount of SUPPORTED_PARTICIPANT_COUNTS) {
+    for (const participantCount of participantCounts) {
       try {
         generateCandidatePool({
           seed: `snapshot-viability:${formation}:${participantCount}`,
@@ -83,14 +86,14 @@ export class FrozenSnapshotService {
     this.#now = options.now ?? (() => new Date());
   }
 
-  async acquire(): Promise<FrozenSnapshot> {
+  async acquire(participantCount?: number): Promise<FrozenSnapshot> {
     return this.#cache.withLock('snapshot:refresh', async () => {
       const latest = await this.#snapshots.getLatestSnapshot();
       const age = latest === null ? Infinity : this.#now().getTime() - Date.parse(latest.createdAt);
       const failures: string[] = [];
       if (latest !== null) {
         try {
-          await this.#assertViable(latest);
+          await this.#assertViable(latest, participantCount);
           if (age <= this.#freshForMs) return latest;
           if (age <= this.#staleForMs) return latest;
         } catch (error) {
@@ -133,7 +136,7 @@ export class FrozenSnapshotService {
                 .at(-1) ?? now,
             candidates,
           };
-          await this.#assertViable(snapshot);
+          await this.#assertViable(snapshot, participantCount);
           await this.#snapshots.putSnapshot(snapshot);
           return snapshot;
         } catch (error) {
@@ -147,10 +150,13 @@ export class FrozenSnapshotService {
     });
   }
 
-  async #assertViable(snapshot: FrozenSnapshot): Promise<void> {
-    const cacheKey = `snapshot:viable:${snapshot.id}`;
+  async #assertViable(snapshot: FrozenSnapshot, participantCount?: number): Promise<void> {
+    const cacheKey = `snapshot:viable:${snapshot.id}:${participantCount ?? 'all'}`;
     if ((await this.#cache.get<boolean>(cacheKey)) === true) return;
-    assertSnapshotPoolViable(snapshot.candidates);
+    assertSnapshotPoolViable(
+      snapshot.candidates,
+      participantCount === undefined ? SUPPORTED_PARTICIPANT_COUNTS : [participantCount],
+    );
     await this.#cache.set(cacheKey, true, this.#staleForMs);
   }
 }

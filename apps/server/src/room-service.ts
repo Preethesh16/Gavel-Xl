@@ -289,7 +289,7 @@ export class RoomService {
       this.#broadcastState(room);
 
       try {
-        const snapshot = await this.#snapshots.acquire();
+        const snapshot = await this.#snapshots.acquire(directors.length);
         const seed = this.#seed();
         const mutation = this.#engine.start({
           seed,

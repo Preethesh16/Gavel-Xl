@@ -7,6 +7,7 @@ import {
   ApiFootballProvider,
   DevelopmentSnapshotProvider,
   DevelopmentValuationProvider,
+  FootballDataOrgProvider,
   FrozenSnapshotService,
   SportmonksProvider,
   type FootballDataProvider,
@@ -146,6 +147,51 @@ describe('data and infrastructure adapters', () => {
     expect(requests.filter((url) => url.pathname.endsWith('/standings'))).toHaveLength(2);
     expect(requests.filter((url) => url.pathname.endsWith('/players'))).toHaveLength(3);
     expect(requests.filter((url) => url.pathname.endsWith('/coachs'))).toHaveLength(2);
+  });
+
+  it('samples random real football-data.org clubs within its free 10-request-per-minute budget', async () => {
+    const requests: string[] = [];
+    const fakeFetch: typeof fetch = async (input) => {
+      const url = new URL(
+        typeof input === 'string' ? input : input instanceof URL ? input : input.url,
+      );
+      requests.push(url.pathname);
+      const competition = url.pathname.split('/')[3] ?? 'PL';
+      const payload = url.pathname.includes('/competitions/')
+        ? { teams: [{ id: `${competition}-team`, name: `${competition} FC` }] }
+        : {
+            name: `${competition} FC`,
+            squad: [
+              {
+                id: `${competition}-player`,
+                name: `${competition} Player`,
+                role: 'PLAYER',
+                position: 'Defender',
+                dateOfBirth: '2000-01-01',
+                nationality: 'France',
+              },
+            ],
+            coach: {
+              id: `${competition}-coach`,
+              name: `${competition} Coach`,
+              dateOfBirth: '1975-01-01',
+              nationality: 'Spain',
+            },
+          };
+      return new Response(JSON.stringify(payload), { status: 200 });
+    };
+    const provider = new FootballDataOrgProvider('test-key', {
+      fetch: fakeFetch,
+      random: () => 0.999,
+    });
+    const [players, managers] = await Promise.all([
+      provider.getActivePlayers(),
+      provider.getManagers(),
+    ]);
+    expect(players).toHaveLength(5);
+    expect(managers).toHaveLength(5);
+    expect(players.every((player) => player.club.endsWith('FC'))).toBe(true);
+    expect(requests).toHaveLength(10);
   });
 
   it('builds Sportmonks candidates from current league squads, never the player catalogue', async () => {

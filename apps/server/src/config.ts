@@ -46,12 +46,16 @@ const configSchema = z
     PRESENCE_TIMEOUT_MS: z.coerce.number().int().min(1_000).default(30_000),
     DATABASE_URL: optionalConnectionUrl(['postgresql:', 'postgres:']),
     REDIS_URL: optionalConnectionUrl(['redis:', 'rediss:']),
-    FOOTBALL_DATA_PROVIDER: z.enum(['auto', 'demo', 'sportmonks', 'api-football']).default('auto'),
+    FOOTBALL_DATA_PROVIDER: z
+      .enum(['auto', 'demo', 'sportmonks', 'api-football', 'football-data-org'])
+      .default('auto'),
     SPORTMONKS_API_TOKEN: optionalNonemptyString,
     API_FOOTBALL_KEY: optionalNonemptyString,
     API_FOOTBALL_LEAGUE_IDS: z.string().default('39,140,135,78,61,94,88,307,203'),
     API_FOOTBALL_SEASON: z.coerce.number().int().min(2000).max(2200).optional(),
     API_FOOTBALL_TEAMS_PER_LEAGUE: z.coerce.number().int().min(1).max(5).default(1),
+    FOOTBALL_DATA_ORG_KEY: optionalNonemptyString,
+    FOOTBALL_DATA_ORG_MAX_CLUBS: z.coerce.number().int().min(2).max(5).default(5),
     VALUATION_PROVIDER: z.enum(['game-estimate']).default('game-estimate'),
     VALUATION_API_KEY: optionalNonemptyString,
     GROQ_API_KEY: optionalNonemptyString,
@@ -87,6 +91,16 @@ const configSchema = z
         message: 'The api-football provider requires API_FOOTBALL_KEY',
       });
     }
+    if (
+      config.FOOTBALL_DATA_PROVIDER === 'football-data-org' &&
+      config.FOOTBALL_DATA_ORG_KEY === undefined
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['FOOTBALL_DATA_ORG_KEY'],
+        message: 'The football-data.org provider requires FOOTBALL_DATA_ORG_KEY',
+      });
+    }
     if (config.NODE_ENV === 'production' && config.FOOTBALL_DATA_PROVIDER === 'demo') {
       context.addIssue({
         code: 'custom',
@@ -98,7 +112,8 @@ const configSchema = z
       config.NODE_ENV === 'production' &&
       config.FOOTBALL_DATA_PROVIDER === 'auto' &&
       config.SPORTMONKS_API_TOKEN === undefined &&
-      config.API_FOOTBALL_KEY === undefined
+      config.API_FOOTBALL_KEY === undefined &&
+      config.FOOTBALL_DATA_ORG_KEY === undefined
     ) {
       context.addIssue({
         code: 'custom',

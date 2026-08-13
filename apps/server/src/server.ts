@@ -22,6 +22,7 @@ import { createOptionalNarrativeEnricher, type EvaluationNarrativeEnricher } fro
 import {
   ApiFootballProvider,
   DevelopmentSnapshotProvider,
+  FootballDataOrgProvider,
   GameEstimateValuationProvider,
   SportmonksProvider,
   type FootballDataProvider,
@@ -158,17 +159,26 @@ export function configuredProviders(config: ServerConfig): FootballDataProvider[
             ? {}
             : { currentSeason: config.API_FOOTBALL_SEASON }),
         });
+  const footballDataOrg =
+    config.FOOTBALL_DATA_ORG_KEY === undefined
+      ? null
+      : new FootballDataOrgProvider(config.FOOTBALL_DATA_ORG_KEY, {
+          maxClubs: config.FOOTBALL_DATA_ORG_MAX_CLUBS,
+        });
   switch (config.FOOTBALL_DATA_PROVIDER) {
     case 'sportmonks':
       return [sportmonks!];
     case 'api-football':
       return [apiFootball!];
+    case 'football-data-org':
+      return [footballDataOrg!];
     case 'demo':
       return [new DevelopmentSnapshotProvider()];
     case 'auto':
       return [
         ...(sportmonks === null ? [] : [sportmonks]),
         ...(apiFootball === null ? [] : [apiFootball]),
+        ...(footballDataOrg === null ? [] : [footballDataOrg]),
         ...(config.NODE_ENV === 'production' ? [] : [new DevelopmentSnapshotProvider()]),
       ];
   }
