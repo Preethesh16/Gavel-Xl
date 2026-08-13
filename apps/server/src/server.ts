@@ -269,6 +269,12 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
     valuationProvider: options.valuationProvider ?? new GameEstimateValuationProvider(),
     cache,
     snapshots: persistence,
+    ...(config.FOOTBALL_DATA_PROVIDER === 'football-data-org'
+      ? {
+          freshForMs: config.FOOTBALL_DATA_ORG_SNAPSHOT_TTL_SECONDS * 1_000,
+          staleForMs: config.FOOTBALL_DATA_ORG_SNAPSHOT_TTL_SECONDS * 1_000,
+        }
+      : {}),
     now: () => new Date(now()),
   });
   const tokenService = new SessionTokenService(
