@@ -191,7 +191,9 @@ describe('data and infrastructure adapters', () => {
     expect(players).toHaveLength(5);
     expect(managers).toHaveLength(5);
     expect(players.every((player) => player.club.endsWith('FC'))).toBe(true);
-    expect(players.every((player) => player.positions.includes('LB'))).toBe(true);
+    expect(
+      players.every((player) => player.positions.length === 1 && player.positions[0] === 'CB'),
+    ).toBe(true);
     expect(requests).toHaveLength(10);
   });
 

@@ -61,16 +61,25 @@ function age(date: unknown): number {
   return Math.max(16, Math.min(50, Math.floor((Date.now() - born.getTime()) / 31_556_952_000)));
 }
 function positions(value: unknown): Position[] {
-  const label = text(value).toLowerCase();
+  const label = text(value).toLowerCase().replaceAll('-', ' ');
   if (label.includes('goal')) return ['GK'];
-  // football-data.org uses detailed labels such as Centre-Back and Right-Back
-  // as well as the generic Defender. Its free squad feed cannot reliably fill
-  // every flank in a small random sample, so the verified defensive group is
-  // compatible with the formation's defensive slots.
-  if (label.includes('defend') || label.includes('back')) return ['CB', 'LB', 'RB', 'LWB', 'RWB'];
-  if (label.includes('midfield')) return ['CM', 'DM', 'AM', 'LW', 'RW'];
-  if (label.includes('wing')) return ['LW', 'RW', 'ST'];
-  return ['ST', 'LW', 'RW'];
+  if (label.includes('left wing back')) return ['LWB'];
+  if (label.includes('right wing back')) return ['RWB'];
+  if (label.includes('left back')) return ['LB'];
+  if (label.includes('right back')) return ['RB'];
+  if (label.includes('centre back') || label.includes('center back') || label === 'defender') {
+    return ['CB'];
+  }
+  if (label.includes('defensive midfield')) return ['DM'];
+  if (label.includes('attacking midfield')) return ['AM'];
+  if (label.includes('central midfield') || label.includes('centre midfield')) return ['CM'];
+  if (label.includes('left wing') || label.includes('left winger')) return ['LW'];
+  if (label.includes('right wing') || label.includes('right winger')) return ['RW'];
+  if (label.includes('midfield')) return ['CM'];
+  if (label.includes('forward') || label.includes('striker') || label.includes('attack'))
+    return ['ST'];
+  // Do not manufacture a full-back / winger role from an unknown label.
+  return ['CB'];
 }
 
 export class FootballDataOrgProvider implements FootballDataProvider {
@@ -80,6 +89,7 @@ export class FootballDataOrgProvider implements FootballDataProvider {
   readonly #fetch: typeof globalThis.fetch;
   readonly #random: () => number;
   #loaded: Promise<{ players: NormalizedPlayer[]; managers: NormalizedManager[] }> | null = null;
+  #loadedAt = 0;
 
   constructor(
     key: string,
@@ -118,7 +128,13 @@ export class FootballDataOrgProvider implements FootballDataProvider {
   }
 
   async #load() {
-    this.#loaded ??= this.#fetchSnapshot();
+    if (this.#loaded === null || Date.now() - this.#loadedAt >= 55_000) {
+      this.#loadedAt = Date.now();
+      this.#loaded = this.#fetchSnapshot().catch((error: unknown) => {
+        this.#loaded = null;
+        throw error;
+      });
+    }
     return this.#loaded;
   }
   async #request(path: string): Promise<Json> {
