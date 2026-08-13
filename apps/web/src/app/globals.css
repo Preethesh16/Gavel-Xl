@@ -4760,6 +4760,68 @@ body {
   font-size: 1.08em;
 }
 
+/* Comfortable default reading size across the live auction, team view and
+   results. Display numerals retain their dense visual treatment; labels and
+   explanatory copy no longer render at the old micro-type scale. */
+.eyebrow,
+.lot-heading > p,
+.room-ticket span,
+.room-ticket button,
+.panel-heading p,
+.participant__name small,
+.participant__state,
+.directors-panel__footer,
+.settings-lock,
+.player-card__copy > p,
+.player-card__bio,
+.player-card__numbers span,
+.player-card__form,
+.player-card__source p,
+.auction-console__timer p,
+.auction-console__timer div > small,
+.timer-orb small,
+.bid-readout span,
+.bid-readout small,
+.bid-controls > p:first-child,
+.safe-bid,
+.team-board header p,
+.team-board__manager span,
+.team-board__manager small,
+.pitch-player small,
+.results-nav button,
+.results-nav button > span,
+.award-grid p,
+.award-grid small,
+.prediction-cards small,
+.prediction-cards article > p,
+.head-to-head article p,
+.financial-table header,
+.results-section-heading > p,
+.metric-count span,
+.metric-bars small,
+.replay-event,
+.share-card p {
+  font-size: max(0.7rem, 1.12em);
+  line-height: 1.45;
+}
+
+.participant__name b,
+.setting-block select,
+.team-board header h3,
+.team-board__manager b,
+.pitch-player b,
+.quick-bids b,
+.results-nav button,
+.rankings-rest b,
+.award-grid h3,
+.prediction-cards article > h3,
+.head-to-head article span,
+.financial-table article,
+.financial-table article b,
+.financial-table article strong {
+  font-size: 1.12em;
+}
+
 @media (max-width: 480px) {
   .brand--compact .brand__word {
     display: none;
