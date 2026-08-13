@@ -47,7 +47,7 @@ const configSchema = z
     DATABASE_URL: optionalConnectionUrl(['postgresql:', 'postgres:']),
     REDIS_URL: optionalConnectionUrl(['redis:', 'rediss:']),
     FOOTBALL_DATA_PROVIDER: z
-      .enum(['auto', 'demo', 'sportmonks', 'api-football', 'football-data-org'])
+      .enum(['auto', 'catalog', 'demo', 'sportmonks', 'api-football', 'football-data-org'])
       .default('auto'),
     SPORTMONKS_API_TOKEN: optionalNonemptyString,
     API_FOOTBALL_KEY: optionalNonemptyString,
@@ -100,6 +100,13 @@ const configSchema = z
         code: 'custom',
         path: ['FOOTBALL_DATA_ORG_KEY'],
         message: 'The football-data.org provider requires FOOTBALL_DATA_ORG_KEY',
+      });
+    }
+    if (config.FOOTBALL_DATA_PROVIDER === 'catalog' && config.DATABASE_URL === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['DATABASE_URL'],
+        message: 'The catalog provider requires DATABASE_URL',
       });
     }
     if (config.NODE_ENV === 'production' && config.FOOTBALL_DATA_PROVIDER === 'demo') {

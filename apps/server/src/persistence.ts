@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import type {
   AcquisitionKind,
@@ -29,7 +30,19 @@ export interface SnapshotRepository {
   getLatestSnapshot(): Promise<FrozenSnapshot | null>;
 }
 
-export interface PersistenceAdapter extends RoomRepository, EventRepository, SnapshotRepository {
+export interface CatalogImportInput {
+  source: string;
+  players: CandidateSnapshot[];
+  managers: CandidateSnapshot[];
+}
+
+export interface CatalogRepository {
+  replaceCatalog(input: CatalogImportInput): Promise<void>;
+  getCatalog(): Promise<{ players: CandidateSnapshot[]; managers: CandidateSnapshot[] } | null>;
+}
+
+export interface PersistenceAdapter
+  extends RoomRepository, EventRepository, SnapshotRepository, CatalogRepository {
   connect?(): Promise<void>;
   close?(): Promise<void>;
 }
@@ -47,6 +60,7 @@ export class InMemoryPersistence implements PersistenceAdapter {
   readonly #rooms = new Map<string, StoredRoom>();
   readonly #events = new Map<string, PersistedEvent[]>();
   readonly #snapshots = new Map<string, FrozenSnapshot>();
+  #catalog: { players: CandidateSnapshot[]; managers: CandidateSnapshot[] } | null = null;
 
   async create(room: StoredRoom, event?: PersistedEvent): Promise<void> {
     if (this.#rooms.has(room.code)) throw new Error(`Room ${room.code} already exists`);
@@ -109,6 +123,17 @@ export class InMemoryPersistence implements PersistenceAdapter {
       right.createdAt.localeCompare(left.createdAt),
     );
     return snapshots[0] === undefined ? null : clone(snapshots[0]);
+  }
+
+  async replaceCatalog(input: CatalogImportInput): Promise<void> {
+    this.#catalog = { players: clone(input.players), managers: clone(input.managers) };
+  }
+
+  async getCatalog(): Promise<{
+    players: CandidateSnapshot[];
+    managers: CandidateSnapshot[];
+  } | null> {
+    return this.#catalog === null ? null : clone(this.#catalog);
   }
 
   async close(): Promise<void> {
@@ -987,6 +1012,72 @@ export class PrismaPersistence implements PersistenceAdapter {
       orderBy: { createdAt: 'desc' },
     });
     return row === null ? null : decodeSnapshot(row.payload);
+  }
+
+  async replaceCatalog(input: CatalogImportInput): Promise<void> {
+    const importedAt = new Date();
+    const hash = createHash('sha256')
+      .update(JSON.stringify({ players: input.players, managers: input.managers }))
+      .digest('hex');
+    await this.#client.$transaction(async (transaction) => {
+      await transaction.playerCatalog.deleteMany();
+      await transaction.managerCatalog.deleteMany();
+      if (input.players.length > 0) {
+        await transaction.playerCatalog.createMany({
+          data: input.players.map((player) => ({
+            canonicalId: player.id,
+            payload: jsonClone(player, 'PlayerCatalog payload') as Prisma.InputJsonValue,
+            source: input.source,
+            updatedAt: requiredDate(player.dataUpdatedAt, 'PlayerCatalog.updatedAt'),
+          })),
+        });
+      }
+      if (input.managers.length > 0) {
+        await transaction.managerCatalog.createMany({
+          data: input.managers.map((manager) => ({
+            canonicalId: manager.id,
+            payload: jsonClone(manager, 'ManagerCatalog payload') as Prisma.InputJsonValue,
+            source: input.source,
+            updatedAt: requiredDate(manager.dataUpdatedAt, 'ManagerCatalog.updatedAt'),
+          })),
+        });
+      }
+      await transaction.catalogImport.create({
+        data: {
+          id: `catalog-${importedAt.getTime()}-${hash.slice(0, 12)}`,
+          source: input.source,
+          importedAt,
+          playerCount: input.players.length,
+          managerCount: input.managers.length,
+          payloadHash: hash,
+        },
+      });
+    });
+  }
+
+  async getCatalog(): Promise<{
+    players: CandidateSnapshot[];
+    managers: CandidateSnapshot[];
+  } | null> {
+    const [players, managers] = await Promise.all([
+      this.#client.playerCatalog.findMany({
+        select: { payload: true },
+        orderBy: { canonicalId: 'asc' },
+      }),
+      this.#client.managerCatalog.findMany({
+        select: { payload: true },
+        orderBy: { canonicalId: 'asc' },
+      }),
+    ]);
+    if (players.length === 0 && managers.length === 0) return null;
+    return {
+      players: players.map(
+        (row) => decodedDocument(row.payload, 'PlayerCatalog payload') as CandidateSnapshot,
+      ),
+      managers: managers.map(
+        (row) => decodedDocument(row.payload, 'ManagerCatalog payload') as CandidateSnapshot,
+      ),
+    };
   }
 
   async close(): Promise<void> {

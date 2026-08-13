@@ -146,6 +146,37 @@ model DataSnapshot {
   games           Game[]
 }
 
+/// The durable source catalogue used to create every new draft. Unlike a game
+/// snapshot this is replaced only by an explicit import, never during play.
+model PlayerCatalog {
+  canonicalId String   @id
+  payload     Json
+  source      String
+  updatedAt   DateTime
+  importedAt  DateTime @default(now())
+
+  @@index([source, updatedAt])
+}
+
+model ManagerCatalog {
+  canonicalId String   @id
+  payload     Json
+  source      String
+  updatedAt   DateTime
+  importedAt  DateTime @default(now())
+
+  @@index([source, updatedAt])
+}
+
+model CatalogImport {
+  id           String   @id
+  source       String
+  importedAt   DateTime @default(now())
+  playerCount  Int
+  managerCount Int
+  payloadHash  String
+}
+
 model PlayerSnapshot {
   id              String       @id @default(cuid())
   snapshotId      String

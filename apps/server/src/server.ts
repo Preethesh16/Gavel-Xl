@@ -21,6 +21,7 @@ import { InMemoryPersistence, PrismaPersistence, type PersistenceAdapter } from 
 import { createOptionalNarrativeEnricher, type EvaluationNarrativeEnricher } from './narrative.js';
 import {
   ApiFootballProvider,
+  CatalogProvider,
   DevelopmentSnapshotProvider,
   FootballDataOrgProvider,
   GameEstimateValuationProvider,
@@ -31,6 +32,7 @@ import {
 import { FrozenSnapshotService } from './providers/snapshots.js';
 import { RoomService } from './room-service.js';
 import { RoomScheduler } from './scheduler.js';
+import { seedCatalogIfEmpty } from './catalog-seed.js';
 import { SessionTokenService } from './security.js';
 import { memberChannel, roomChannel, SocketPublisher } from './socket-publisher.js';
 import { socketSchemas } from './validation.js';
@@ -166,6 +168,10 @@ export function configuredProviders(config: ServerConfig): FootballDataProvider[
           maxClubs: config.FOOTBALL_DATA_ORG_MAX_CLUBS,
         });
   switch (config.FOOTBALL_DATA_PROVIDER) {
+    // Catalog construction needs the active persistence adapter and is wired
+    // in buildServer after it has connected.
+    case 'catalog':
+      return [];
     case 'sportmonks':
       return [sportmonks!];
     case 'api-football':
@@ -206,6 +212,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
   try {
     await persistence.connect?.();
     await cache.connect?.();
+    if (config.FOOTBALL_DATA_PROVIDER === 'catalog') await seedCatalogIfEmpty(persistence);
   } catch (error) {
     await Promise.allSettled([cache.close?.(), persistence.close?.()]);
     throw new Error('Configured persistence or cache adapter failed to initialize', {
@@ -263,7 +270,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
     };
   }
   const publisher = new SocketPublisher(io);
-  const dataProviders = options.dataProviders ?? configuredProviders(config);
+  const dataProviders =
+    options.dataProviders ??
+    (config.FOOTBALL_DATA_PROVIDER === 'catalog'
+      ? [new CatalogProvider(persistence)]
+      : configuredProviders(config));
   const snapshotService = new FrozenSnapshotService({
     providers: dataProviders,
     valuationProvider: options.valuationProvider ?? new GameEstimateValuationProvider(),
