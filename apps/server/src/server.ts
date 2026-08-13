@@ -318,12 +318,20 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
   let listeningAddress: string | null = null;
   let stopped = false;
 
-  app.get('/health', async () => ({
-    status: 'ok',
-    service: 'gavel-xi-server',
-    cache: await cache.health(),
-    now: new Date(now()).toISOString(),
-  }));
+  app.get('/health', async () => {
+    const catalog =
+      config.FOOTBALL_DATA_PROVIDER === 'catalog' ? await persistence.getCatalog() : null;
+    return {
+      status: 'ok',
+      service: 'gavel-xi-server',
+      cache: await cache.health(),
+      footballDataProvider: config.FOOTBALL_DATA_PROVIDER,
+      ...(catalog === null
+        ? {}
+        : { catalogPlayers: catalog.players.length, catalogManagers: catalog.managers.length }),
+      now: new Date(now()).toISOString(),
+    };
+  });
 
   if (config.NODE_ENV !== 'production' && (config.DEBUG_ROUTES ?? true)) {
     app.get('/admin/data-health', async () => {
