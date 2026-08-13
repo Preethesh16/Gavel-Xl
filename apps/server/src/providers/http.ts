@@ -17,6 +17,8 @@ interface ProviderHttpOptions {
 export interface ApiFootballOptions extends ProviderHttpOptions {
   currentSeason?: number;
   leagueIds: number[];
+  /** Keep historical free-plan acquisition below the daily request allowance. */
+  teamsPerLeague?: number;
   now?: () => Date;
 }
 
@@ -156,6 +158,20 @@ function normalizePosition(raw: unknown): Position | null {
   return allowed.has(value as Position) ? (value as Position) : (aliases[value] ?? null);
 }
 
+function normalizePositions(raw: unknown): Position[] {
+  const label = string(record(raw)?.['name'] ?? raw)
+    .toUpperCase()
+    .replace('/', '_');
+  // API-Football's free historical player response exposes broad groups
+  // (Defender/Midfielder/Attacker), not a fabricated detailed role. Keep the
+  // verified group truthful while allowing the auction's formation slots.
+  if (label === 'DEFENDER') return ['CB', 'LB', 'RB', 'LWB', 'RWB'];
+  if (label === 'MIDFIELDER') return ['CM', 'DM', 'AM', 'LW', 'RW'];
+  if (label === 'ATTACKER' || label === 'FORWARD') return ['ST', 'LW', 'RW'];
+  const position = normalizePosition(raw);
+  return position === null ? [] : [position];
+}
+
 function arrayPayload(payload: unknown): unknown[] {
   if (Array.isArray(payload)) return payload;
   const outer = record(payload);
@@ -181,11 +197,11 @@ abstract class HttpFootballProvider implements FootballDataProvider {
   protected abstract playersPath(): string;
   protected abstract managersPath(): string;
 
-  protected async load(path: string): Promise<unknown[]> {
+  protected async load(path: string, paginate = true): Promise<unknown[]> {
     const firstUrl = new URL(path, this.baseUrl);
-    firstUrl.searchParams.set('page', '1');
+    if (paginate) firstUrl.searchParams.set('page', '1');
     const first = await this.loadPage(firstUrl);
-    if (!first.hasMore) return first.values;
+    if (!paginate || !first.hasMore) return first.values;
 
     if (this.name !== 'sportmonks') {
       const values = [...first.values];
@@ -248,12 +264,13 @@ abstract class HttpFootballProvider implements FootballDataProvider {
     const goalStats = record(stats?.['goals']);
     const id = string(raw['id'] ?? raw['player_id']);
     const name = string(raw['display_name'] ?? raw['name'] ?? raw['common_name']);
-    const position = normalizePosition(
+    const positionSource =
       raw['position'] ??
-        raw['position_name'] ??
-        record(raw['position'])?.['name'] ??
-        games?.['position'],
-    );
+      raw['position_name'] ??
+      record(raw['position'])?.['name'] ??
+      games?.['position'];
+    const positions = normalizePositions(positionSource);
+    const position = positions[0] ?? null;
     if (
       id === '' ||
       name === '' ||
@@ -277,7 +294,7 @@ abstract class HttpFootballProvider implements FootballDataProvider {
       nationality: string(nationality?.['name'] ?? raw['nationality'], 'Unknown'),
       club: string(club?.['name'] ?? raw['team_name'], 'Unknown'),
       league: string(league?.['name'] ?? raw['league_name'], 'Unknown'),
-      positions: [position],
+      positions,
       preferredPosition: position,
       imageUrl: string(raw['image_path'] ?? raw['photo']) || null,
       season: string(raw['season'], 'current'),
@@ -602,6 +619,8 @@ export class ApiFootballProvider extends HttpFootballProvider {
   readonly #key: string;
   readonly #season: number;
   readonly #leagueIds: number[];
+  readonly #teamsPerLeague: number;
+  #archive: Promise<{ players: NormalizedPlayer[]; managers: NormalizedManager[] }> | null = null;
 
   constructor(key: string, options: ApiFootballOptions) {
     super(options, 'https://v3.football.api-sports.io/');
@@ -616,6 +635,7 @@ export class ApiFootballProvider extends HttpFootballProvider {
     if (this.#leagueIds.length === 0) {
       throw new Error('ApiFootballProvider requires at least one configured league ID');
     }
+    this.#teamsPerLeague = Math.max(1, Math.min(5, options.teamsPerLeague ?? 3));
   }
 
   protected headers(): Record<string, string> {
@@ -632,18 +652,92 @@ export class ApiFootballProvider extends HttpFootballProvider {
   }
 
   override async getActivePlayers(): Promise<NormalizedPlayer[]> {
-    const collected = (
+    return (await this.#loadArchive()).players;
+  }
+
+  override async getManagers(): Promise<NormalizedManager[]> {
+    return (await this.#loadArchive()).managers;
+  }
+
+  async #loadArchive(): Promise<{ players: NormalizedPlayer[]; managers: NormalizedManager[] }> {
+    this.#archive ??= this.#fetchArchive();
+    return this.#archive;
+  }
+
+  async #fetchArchive(): Promise<{ players: NormalizedPlayer[]; managers: NormalizedManager[] }> {
+    // A league-wide players query is 50+ pages per league. Instead, archive a
+    // balanced set of actual 2024/25 table leaders and their real squads.
+    // Nine standings calls + 2 clubs x player/coach calls remains comfortably
+    // below API-Football's free 100-request daily allowance.
+    const selectedTeams = (
       await Promise.all(
-        this.#leagueIds.map(async (leagueId) =>
-          this.load(`players?season=${this.#season}&league=${leagueId}`),
-        ),
+        this.#leagueIds.map(async (leagueId) => {
+          const response = await this.load(
+            `standings?league=${leagueId}&season=${this.#season}`,
+            false,
+          );
+          const league = record(response[0])?.['league'];
+          const tables = relationArray(record(league)?.['standings']);
+          const rows = tables.flatMap((table) => relationArray(table));
+          return rows.slice(0, this.#teamsPerLeague).map((row) => ({
+            team: record(record(row)?.['team']),
+            leagueName: string(record(league)?.['name'], `League ${leagueId}`),
+          }));
+        }),
       )
-    ).flat();
-    const unique = new Map<string, NormalizedPlayer>();
-    for (const raw of collected) {
-      const player = this.playerFrom(raw);
-      if (player !== null) unique.set(player.id, player);
+    )
+      .flat()
+      .filter((entry): entry is { team: JsonRecord; leagueName: string } => entry.team !== null);
+
+    const values = await Promise.all(
+      selectedTeams.map(async ({ team, leagueName }) => {
+        const teamId = string(team['id']);
+        const [players, managers] = await Promise.all([
+          this.load(`players?team=${teamId}&season=${this.#season}`),
+          this.load(`coachs?team=${teamId}`, false),
+        ]);
+        return { team, leagueName, players, managers };
+      }),
+    );
+    const players = new Map<string, NormalizedPlayer>();
+    const managers = new Map<string, NormalizedManager>();
+    const updatedAt = new Date().toISOString();
+    for (const source of values) {
+      for (const raw of source.players) {
+        const candidate = this.playerFrom(raw);
+        if (candidate !== null) {
+          players.set(candidate.id, {
+            ...candidate,
+            league: source.leagueName,
+            season: `${this.#season}/${this.#season + 1}`,
+            dataUpdatedAt: updatedAt,
+          });
+        }
+      }
+      // API-Football includes historic assistants. Prefer the coach whose
+      // career has an open assignment to this club before considering a
+      // fallback named staff member.
+      const activeCoach = source.managers.find((raw) => {
+        const coach = record(raw);
+        return relationArray(coach?.['career']).some((assignment) => {
+          const career = record(assignment);
+          return (
+            string(record(career?.['team'])?.['id']) === string(source.team['id']) &&
+            (career?.['end'] === null || career?.['end'] === undefined)
+          );
+        });
+      });
+      const manager = this.managerFrom(activeCoach ?? source.managers[0]);
+      if (manager !== null) {
+        managers.set(manager.id, {
+          ...manager,
+          club: string(source.team['name'], manager.club),
+          league: source.leagueName,
+          season: `${this.#season}/${this.#season + 1}`,
+          dataUpdatedAt: updatedAt,
+        });
+      }
     }
-    return [...unique.values()];
+    return { players: [...players.values()], managers: [...managers.values()] };
   }
 }

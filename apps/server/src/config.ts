@@ -51,6 +51,7 @@ const configSchema = z
     API_FOOTBALL_KEY: optionalNonemptyString,
     API_FOOTBALL_LEAGUE_IDS: z.string().default('39,140,135,78,61,94,88,307,203'),
     API_FOOTBALL_SEASON: z.coerce.number().int().min(2000).max(2200).optional(),
+    API_FOOTBALL_TEAMS_PER_LEAGUE: z.coerce.number().int().min(1).max(5).default(2),
     VALUATION_PROVIDER: z.enum(['game-estimate']).default('game-estimate'),
     VALUATION_API_KEY: optionalNonemptyString,
     GROQ_API_KEY: optionalNonemptyString,

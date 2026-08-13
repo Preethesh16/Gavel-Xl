@@ -153,6 +153,7 @@ export function configuredProviders(config: ServerConfig): FootballDataProvider[
           leagueIds: config.API_FOOTBALL_LEAGUE_IDS.split(',')
             .map(Number)
             .filter((value) => Number.isSafeInteger(value) && value > 0),
+          teamsPerLeague: config.API_FOOTBALL_TEAMS_PER_LEAGUE,
           ...(config.API_FOOTBALL_SEASON === undefined
             ? {}
             : { currentSeason: config.API_FOOTBALL_SEASON }),

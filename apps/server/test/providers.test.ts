@@ -54,7 +54,7 @@ describe('data and infrastructure adapters', () => {
     }
   });
 
-  it('derives API-Football season from the clock, queries configured leagues and follows pagination', async () => {
+  it('archives real API-Football table leaders by team instead of burning the free quota on league catalogues', async () => {
     const requests: URL[] = [];
     const fakeFetch: typeof fetch = async (input) => {
       const url = new URL(
@@ -63,7 +63,40 @@ describe('data and infrastructure adapters', () => {
       requests.push(url);
       const league = Number(url.searchParams.get('league'));
       const page = Number(url.searchParams.get('page'));
-      const id = league * 100 + page;
+      const team = Number(url.searchParams.get('team'));
+      if (url.pathname.endsWith('/standings')) {
+        return new Response(
+          JSON.stringify({
+            response: [
+              {
+                league: {
+                  name: `League ${league}`,
+                  standings: [[{ team: { id: league * 10 + 1, name: `Club ${league}` } }]],
+                },
+              },
+            ],
+            paging: { current: 1, total: 1 },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url.pathname.endsWith('/coachs')) {
+        return new Response(
+          JSON.stringify({
+            response: [
+              {
+                id: team,
+                name: `Coach ${team}`,
+                nationality: 'France',
+                team: { name: `Club ${league}` },
+              },
+            ],
+            paging: { current: 1, total: 1 },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      const id = team * 100 + page;
       return new Response(
         JSON.stringify({
           response: [
@@ -91,7 +124,7 @@ describe('data and infrastructure adapters', () => {
               ],
             },
           ],
-          paging: { current: page, total: league === 39 ? 2 : 1 },
+          paging: { current: page, total: team === 391 ? 2 : 1 },
         }),
         { status: 200, headers: { 'content-type': 'application/json' } },
       );
@@ -104,10 +137,14 @@ describe('data and infrastructure adapters', () => {
     const players = await provider.getActivePlayers();
     expect(players).toHaveLength(3);
     expect(players.every(({ preferredPosition }) => preferredPosition === 'ST')).toBe(true);
-    expect(requests.map((url) => url.searchParams.get('season'))).toEqual(['2025', '2025', '2025']);
     expect(
-      requests.map((url) => `${url.searchParams.get('league')}:${url.searchParams.get('page')}`),
-    ).toEqual(['39:1', '140:1', '39:2']);
+      requests
+        .filter((url) => !url.pathname.endsWith('/coachs'))
+        .map((url) => url.searchParams.get('season')),
+    ).toEqual(['2025', '2025', '2025', '2025', '2025']);
+    expect(requests.filter((url) => url.pathname.endsWith('/standings'))).toHaveLength(2);
+    expect(requests.filter((url) => url.pathname.endsWith('/players'))).toHaveLength(3);
+    expect(requests.filter((url) => url.pathname.endsWith('/coachs'))).toHaveLength(2);
   });
 
   it('builds Sportmonks candidates from current league squads, never the player catalogue', async () => {
