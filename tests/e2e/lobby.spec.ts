@@ -52,6 +52,11 @@ test('desktop directors create, join, ready and start with host authority enforc
       }),
     );
     expect(directors.flatMap(({ runtimeErrors }) => runtimeErrors)).toEqual([]);
+
+    await expect(host.page.getByTestId('back-to-home')).toBeVisible();
+    await host.page.getByTestId('back-to-home').click();
+    await expect(host.page.getByTestId('landing-screen')).toBeVisible();
+    await expect(host.page).toHaveURL(/\/$/);
   } finally {
     await closeDirectors(directors);
   }

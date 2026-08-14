@@ -13,6 +13,7 @@ interface RoomHeaderProps {
   soundEnabled: boolean;
   onSoundToggle: () => void;
   onCopy: () => void;
+  onBack: () => void;
 }
 
 export function RoomHeader({
@@ -22,10 +23,22 @@ export function RoomHeader({
   soundEnabled,
   onSoundToggle,
   onCopy,
+  onBack,
 }: RoomHeaderProps) {
   return (
     <header className="room-header">
-      <Brand compact />
+      <div className="room-header__home">
+        <button
+          type="button"
+          data-testid="back-to-home"
+          onClick={onBack}
+          aria-label="Leave room and go back to the main screen"
+        >
+          <span aria-hidden="true">←</span>
+          <b>HOME</b>
+        </button>
+        <Brand compact />
+      </div>
       <div className="room-header__identity">
         <span>ROOM</span>
         <button

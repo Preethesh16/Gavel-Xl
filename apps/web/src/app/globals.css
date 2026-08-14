@@ -172,6 +172,39 @@ summary:focus-visible {
   background: rgba(8, 10, 9, 0.86);
   backdrop-filter: blur(18px);
 }
+.room-header__home {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.room-header__home > button {
+  min-height: 36px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease;
+}
+.room-header__home > button span {
+  font-size: 17px;
+  line-height: 1;
+}
+.room-header__home > button:hover,
+.room-header__home > button:focus-visible {
+  border-color: var(--acid);
+  background: var(--acid-soft);
+  color: var(--acid);
+}
 .room-header__identity {
   display: flex;
   align-items: center;
@@ -4977,6 +5010,18 @@ summary:focus-visible {
     grid-template-columns: 1fr auto auto;
     gap: 8px;
   }
+  .room-header__home {
+    gap: 8px;
+  }
+  .room-header__home > button {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+  .room-header__home > button b {
+    display: none;
+  }
   .room-header__identity {
     height: 100%;
     padding: 0 12px;
@@ -5513,7 +5558,10 @@ body {
     display: none;
   }
   .room-header {
-    grid-template-columns: 34px 1fr auto;
+    grid-template-columns: 52px 1fr auto;
+  }
+  .room-header__home .brand--compact {
+    display: none;
   }
   .room-header__identity {
     justify-self: center;

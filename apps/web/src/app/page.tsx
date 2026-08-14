@@ -129,6 +129,7 @@ export default function Home() {
         soundEnabled={sound.enabled}
         onSoundToggle={sound.toggle}
         onCopy={() => void copyInvite()}
+        onBack={() => void game.leaveRoom()}
       />
       {LOBBY_PHASES.includes(room.phase) ? (
         <Lobby

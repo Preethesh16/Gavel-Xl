@@ -64,6 +64,7 @@ test('landing, lobby, auction and results stay readable without browser errors',
     const roomCode = await createRoom(page, host.name);
     await joinRoom(guest.page, roomCode, guest.name);
     await expect(page.getByTestId('participant-list')).toContainText(guest.name);
+    await expect(page.getByTestId('back-to-home')).toBeVisible();
     await expectNoHorizontalOverflow(page, 'lobby');
     await attachScreenshot(page, testInfo, 'lobby');
 
