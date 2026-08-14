@@ -174,6 +174,36 @@ export interface TeamResultView {
   finalRating: number;
 }
 
+export interface AnalystTeamVerdictView {
+  memberId: string;
+  verdict: string;
+  tacticalIdentity: string;
+  decisiveEdge: string;
+  concern: string;
+}
+
+export interface AnalystCategoryVerdictView {
+  category: string;
+  winnerIds: string[];
+  summary: string;
+}
+
+/**
+ * Copy-only analyst commentary. Winner/category identifiers are rebound to the
+ * authoritative engine result by the server and can never be selected by AI.
+ */
+export interface AnalystReportView {
+  source: 'engine' | 'groq';
+  headline: string;
+  opening: string;
+  teamVerdicts: AnalystTeamVerdictView[];
+  categoryVerdicts: AnalystCategoryVerdictView[];
+  winnerId: string;
+  runnerUpId: string | null;
+  finalWhy: string;
+  closingLine: string;
+}
+
 export interface EvaluationView {
   metrics: MetricScoreView[];
   teams: TeamResultView[];
@@ -187,6 +217,7 @@ export interface EvaluationView {
   }>;
   seed: string;
   seedCommitment: string;
+  analystReport?: AnalystReportView;
 }
 
 export interface CheckpointView {
@@ -331,6 +362,7 @@ export interface ClientToServerEvents {
   ) => void;
   'room:leave': (input: { roomCode: string }, callback: (ack: Ack) => void) => void;
   'game:start': (input: { roomCode: string }, callback: (ack: Ack<RoomView>) => void) => void;
+  'game:restart': (input: { roomCode: string }, callback: (ack: Ack<RoomView>) => void) => void;
   'auction:bid': (
     input: { roomCode: string; amountEUR: number; auctionSequence: number; idempotencyKey: string },
     callback: (ack: Ack<{ room: RoomView }>) => void,

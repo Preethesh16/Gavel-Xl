@@ -147,7 +147,14 @@ test('four isolated clients synchronize presence, atomic bids, outcomes, reconne
     await expect(host.page.getByTestId('team-check-modal')).toBeVisible();
     await expect(host.page.locator('[data-testid^="team-board-"]')).toHaveCount(1);
     await host.page.getByTestId('team-check-all').click();
-    await expect(host.page.locator('[data-testid^="team-board-"]')).toHaveCount(4);
+    await expect(host.page.getByTestId('team-director-switcher')).toBeVisible();
+    await expect(host.page.locator('[data-testid^="team-board-"]')).toHaveCount(1);
+    const shownDirectors = new Set<string>();
+    for (let index = 0; index < names.length; index += 1) {
+      shownDirectors.add((await host.page.getByTestId('team-director-current').innerText()).trim());
+      if (index < names.length - 1) await host.page.getByTestId('team-director-next').click();
+    }
+    expect(shownDirectors).toEqual(new Set(names.map((name) => name.toUpperCase())));
     await expect(host.page.getByTestId('team-check-modal')).not.toContainText(spectator.name);
     await host.page.getByTestId('team-check-close').click();
 

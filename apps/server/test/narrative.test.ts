@@ -5,6 +5,7 @@ import {
   createOptionalNarrativeEnricher,
   GroqNarrativeEnricher,
   mergeEvaluationNarrative,
+  withDeterministicAnalystReport,
 } from '../src/narrative.js';
 
 function team(memberId: string, rank: number, score: number): TeamResultView {
@@ -74,6 +75,29 @@ const narrative = {
       explanation: 'Alpha controls the central spaces, while Beta remains dangerous in transition.',
     },
   ],
+  report: {
+    headline: 'Alpha wins the spaces that matter',
+    opening: 'A narrow result decided by central control and cleaner work in the decisive phases.',
+    teamVerdicts: [
+      {
+        memberId: 'alpha',
+        verdict: 'Alpha built the more complete XI and controlled the central lane.',
+        tacticalIdentity: 'Controlled possession with direct runners',
+        decisiveEdge: 'Central overloads',
+        concern: 'Space behind the full-backs',
+      },
+      {
+        memberId: 'beta',
+        verdict: 'Beta remained a threat in transition but lacked enough settled-possession craft.',
+        tacticalIdentity: 'Compact counter-attacking block',
+        decisiveEdge: 'Transition speed',
+        concern: 'Low-block creativity',
+      },
+    ],
+    categoryVerdicts: [{ index: 0, summary: 'Alpha carried the sharper final-third threat.' }],
+    finalWhy: 'Alpha won because its attacking edge survived without sacrificing structure.',
+    closingLine: 'One point on paper, one decisive tactical edge on the pitch.',
+  },
 };
 
 function responseFor(value: unknown): Response {
@@ -84,6 +108,40 @@ function responseFor(value: unknown): Response {
 }
 
 describe('optional Groq evaluation narrative', () => {
+  it('always builds a complete deterministic analyst report without Groq', () => {
+    const base = evaluation();
+    const report = withDeterministicAnalystReport({
+      roomCode: 'ABC234',
+      members: [
+        { id: 'alpha', name: 'Alpha' },
+        { id: 'beta', name: 'Beta' },
+      ],
+      evaluation: base,
+      formation: '4-2-1-3',
+      squads: [
+        {
+          memberId: 'alpha',
+          player: 'Number Nine',
+          position: 'ST',
+          club: 'Alpha FC',
+          priceEUR: 80_000_000,
+          marketValueEUR: 90_000_000,
+        },
+      ],
+    });
+
+    expect(report.analystReport).toMatchObject({
+      source: 'engine',
+      winnerId: 'alpha',
+      runnerUpId: 'beta',
+      categoryVerdicts: [{ category: 'ATTACK', winnerIds: ['alpha'] }],
+    });
+    expect(report.analystReport?.teamVerdicts).toHaveLength(2);
+    expect(report.analystReport?.teamVerdicts[0]?.verdict).toContain('Number Nine');
+    expect(report.metrics).toEqual(base.metrics);
+    expect(report.teams).toEqual(base.teams);
+  });
+
   it('uses strict structured output, caches it and cannot change numerical authority', async () => {
     const requests: Array<{ url: string; init: RequestInit }> = [];
     const fetcher: typeof fetch = vi.fn(async (input, init) => {
@@ -119,6 +177,13 @@ describe('optional Groq evaluation narrative', () => {
     expect(first.teams[0]?.strengths[0]).toBe('Ruthless movement between the lines');
     expect(first.awards[0]?.detail).toContain('disciplined spending');
     expect(first.headToHead[0]?.explanation).toContain('central spaces');
+    expect(first.analystReport).toMatchObject({
+      source: 'groq',
+      winnerId: 'alpha',
+      runnerUpId: 'beta',
+      headline: 'Alpha wins the spaces that matter',
+      categoryVerdicts: [{ category: 'ATTACK', winnerIds: ['alpha'] }],
+    });
     const request = JSON.parse(String(requests[0]?.init.body)) as {
       response_format: { json_schema: { strict: boolean; schema: object } };
     };
@@ -142,11 +207,17 @@ describe('optional Groq evaluation narrative', () => {
     restored.headToHead.forEach((match, index) => {
       match.explanation = base.headToHead[index]!.explanation;
     });
+    delete restored.analystReport;
     expect(restored).toEqual(base);
   });
 
   it('falls back exactly on invalid output or timeout and makes no call without a key', async () => {
     const base = evaluation();
+    const fallback = withDeterministicAnalystReport({
+      roomCode: 'ABC234',
+      members: [],
+      evaluation: base,
+    });
     const invalid = new GroqNarrativeEnricher({
       apiKey: 'groq-test-key',
       cache: new InMemoryCache(),
@@ -154,7 +225,7 @@ describe('optional Groq evaluation narrative', () => {
     });
     await expect(
       invalid.enrich({ roomCode: 'ABC234', members: [], evaluation: base }),
-    ).resolves.toEqual(base);
+    ).resolves.toEqual(fallback);
 
     const timeout = new GroqNarrativeEnricher({
       apiKey: 'groq-test-key',
@@ -164,7 +235,7 @@ describe('optional Groq evaluation narrative', () => {
     });
     await expect(
       timeout.enrich({ roomCode: 'ABC234', members: [], evaluation: base }),
-    ).resolves.toEqual(base);
+    ).resolves.toEqual(fallback);
 
     const neverFetch = vi.fn<typeof fetch>();
     expect(
@@ -174,7 +245,11 @@ describe('optional Groq evaluation narrative', () => {
   });
 
   it('rebuilds from authoritative results even if an injected enricher changes every number', () => {
-    const base = evaluation();
+    const base = withDeterministicAnalystReport({
+      roomCode: 'ABC234',
+      members: [],
+      evaluation: evaluation(),
+    });
     const hostile = structuredClone(base);
     hostile.metrics[0]!.scores.alpha = 0;
     hostile.teams[0]!.rank = 99;
@@ -191,5 +266,39 @@ describe('optional Groq evaluation narrative', () => {
     expect(merged.headToHead[0]).toMatchObject({ homeGoals: 2, awayGoals: 1 });
     expect(merged.seed).toBe(base.seed);
     expect(merged.teams[0]?.strengths).toEqual(narrative.teams[0]?.strengths);
+    expect(merged.analystReport).toMatchObject({ winnerId: 'alpha', runnerUpId: 'beta' });
+    expect(merged.analystReport?.categoryVerdicts[0]?.winnerIds).toEqual(['alpha']);
+  });
+
+  it('rebounds hostile report winners to the authoritative ranking and category scores', () => {
+    const base = evaluation();
+    const proposed = structuredClone(base);
+    proposed.analystReport = {
+      source: 'groq',
+      headline: narrative.report.headline,
+      opening: narrative.report.opening,
+      teamVerdicts: narrative.report.teamVerdicts,
+      categoryVerdicts: [
+        {
+          category: 'FAKE',
+          winnerIds: ['beta'],
+          summary: narrative.report.categoryVerdicts[0]!.summary,
+        },
+      ],
+      winnerId: 'beta',
+      runnerUpId: 'alpha',
+      finalWhy: narrative.report.finalWhy,
+      closingLine: narrative.report.closingLine,
+    };
+
+    const merged = mergeEvaluationNarrative(base, proposed);
+
+    expect(merged.analystReport?.winnerId).toBe('alpha');
+    expect(merged.analystReport?.runnerUpId).toBe('beta');
+    expect(merged.analystReport?.categoryVerdicts).toEqual([
+      expect.objectContaining({ category: 'ATTACK', winnerIds: ['alpha'] }),
+    ]);
+    expect(merged.teams).toEqual(base.teams);
+    expect(merged.metrics).toEqual(base.metrics);
   });
 });

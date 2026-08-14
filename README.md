@@ -80,24 +80,24 @@ exported process variable takes precedence.
 
 Copy `.env.example`; never commit the resulting `.env`.
 
-| Variable                 | Purpose                                                                 |
-| ------------------------ | ----------------------------------------------------------------------- |
-| `DATABASE_URL`           | PostgreSQL connection used by the durable repository/migrations         |
-| `REDIS_URL`              | Redis connection used by atomic auction/presence adapters               |
-| `FOOTBALL_DATA_PROVIDER` | `auto`, `sportmonks`, `api-football`, or explicitly labelled `demo`     |
-| `SPORTMONKS_API_TOKEN`   | Sportmonks credential; server-only                                      |
-| `API_FOOTBALL_KEY`       | API-Football credential; server-only                                    |
-| `VALUATION_PROVIDER`     | Supported value: `game-estimate`; unknown modes fail configuration      |
-| `VALUATION_API_KEY`      | Reserved for a future licensed valuation adapter                        |
-| `GROQ_API_KEY`           | Optional structured football-copy enrichment; never numerical authority |
-| `GROQ_MODEL`             | Groq model; defaults to `openai/gpt-oss-20b`                            |
-| `GROQ_TIMEOUT_MS`        | Bounded enrichment deadline; defaults to `5000`                         |
-| `NEXT_PUBLIC_APP_URL`    | Browser-visible canonical client URL                                    |
-| `NEXT_PUBLIC_SERVER_URL` | Browser-visible realtime server URL                                     |
-| `SERVER_URL`             | Internal backend URL used to render public result routes                |
-| `CLIENT_ORIGIN`          | Comma-separated allowed Socket.IO/HTTP client origins                   |
-| `PORT`                   | Backend port, normally `4000`                                           |
-| `SESSION_SECRET`         | Empty locally for a random key; production: `openssl rand -hex 32`      |
+| Variable                 | Purpose                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `DATABASE_URL`           | PostgreSQL connection used by the durable repository/migrations                 |
+| `REDIS_URL`              | Redis connection used by atomic auction/presence adapters                       |
+| `FOOTBALL_DATA_PROVIDER` | `catalog`, `auto`, `sportmonks`, `api-football`, `football-data-org`, or `demo` |
+| `SPORTMONKS_API_TOKEN`   | Sportmonks credential; server-only                                              |
+| `API_FOOTBALL_KEY`       | API-Football credential; server-only                                            |
+| `VALUATION_PROVIDER`     | Supported value: `game-estimate`; unknown modes fail configuration              |
+| `VALUATION_API_KEY`      | Reserved for a future licensed valuation adapter                                |
+| `GROQ_API_KEY`           | Optional structured football-copy enrichment; never numerical authority         |
+| `GROQ_MODEL`             | Groq model; defaults to `openai/gpt-oss-20b`                                    |
+| `GROQ_TIMEOUT_MS`        | Bounded enrichment deadline; defaults to `15000`                                |
+| `NEXT_PUBLIC_APP_URL`    | Browser-visible canonical client URL                                            |
+| `NEXT_PUBLIC_SERVER_URL` | Browser-visible realtime server URL                                             |
+| `SERVER_URL`             | Internal backend URL used to render public result routes                        |
+| `CLIENT_ORIGIN`          | Comma-separated allowed Socket.IO/HTTP client origins                           |
+| `PORT`                   | Backend port, normally `4000`                                                   |
+| `SESSION_SECRET`         | Empty locally for a random key; production: `openssl rand -hex 32`              |
 
 All provider values retain source, retrieval time, valuation date, confidence, and a value type. A
 game estimate is displayed as **GAVEL XI Estimate**, never as market value. Each room freezes one data
@@ -116,7 +116,7 @@ returns the deterministic copy unchanged.
 - A room needs 2–8 ready Sporting Directors. A later join is a read-only spectator.
 - Each formation is data: eleven slot cycles plus a separate manager cycle. Repeated positions (for
   example two CBs) remain independent even though both are presented as `CB`.
-- With `N` directors, every cycle has exactly `N` candidates: `N - 1` high-current-form choices and one
+- With `N` directors, every cycle has exactly `N` candidates: `N - 1` high-profile choices and one
   legitimate fallback. Tiers and future identities stay server-only.
 - The complete pool and reveal sequence are produced from one seed before play. The SHA-256 seed
   commitment is public at kickoff; the seed is revealed on completion.
@@ -176,6 +176,12 @@ an alternate. The development adapter is a finite, versioned fixture intended fo
 not a claim about present-day clubs or prices. No restricted website is scraped, and card imagery
 falls back to an original silhouette/initial treatment when a licensed URL is unavailable.
 
+`catalog` mode is the quota-free production alternative. It stores an open Transfermarkt-derived
+snapshot in PostgreSQL and serves every draft without a third-party request. It provides imported
+identity, club, exact position and market-value fields; role/form signals are explicitly
+market-derived estimates, not live match statistics. Refresh it deliberately with
+`catalog:bootstrap` plus `catalog:import` when a newer open snapshot is required.
+
 Adding a provider means implementing the football data and/or valuation interface, mapping into the
 normalized snapshot, preserving provenance, and adding contract tests. Credentials stay in the
 backend environment.
@@ -204,7 +210,7 @@ Before production launch:
 1. Configure HTTPS origins and strong session secrets.
 2. Apply the Prisma migrations to PostgreSQL.
 3. Enable Redis locks/pub-sub for every realtime instance.
-4. Configure at least one licensed/current football provider and review its usage rights.
+4. Configure the durable open catalog or a licensed/current football provider and review its usage rights.
 5. Disable development provider/debug routes.
 6. Run `pnpm check` and `pnpm test:e2e` against the deployed topology.
 

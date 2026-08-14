@@ -354,6 +354,16 @@ async function projectRoom(transaction: Prisma.TransactionClient, room: StoredRo
   });
   if (roomRow === null) throw new Error(`Room ${room.code} projection has no parent row`);
 
+  const state = hiddenEngineState(room);
+  const clearsGameProjection =
+    state === null || room.snapshotId === null || room.seedCommitment === null;
+  if (clearsGameProjection) {
+    // A completed game's bids, squad entries and winning lots reference its
+    // RoomMembers without member-side cascades. Drop the game projection first
+    // so those rows disappear before a rematch prunes disconnected members.
+    await transaction.game.deleteMany({ where: { roomId: roomRow.id } });
+  }
+
   const activeMemberIds = new Set(room.members.map((member) => member.id));
   await transaction.roomMember.deleteMany({
     where: { roomId: roomRow.id, id: { notIn: [...activeMemberIds] } },
@@ -391,7 +401,6 @@ async function projectRoom(transaction: Prisma.TransactionClient, room: StoredRo
     });
   }
 
-  const state = hiddenEngineState(room);
   if (state === null || room.snapshotId === null || room.seedCommitment === null) return;
   const id = gameId(room.code);
   await transaction.game.upsert({

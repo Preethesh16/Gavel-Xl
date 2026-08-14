@@ -356,7 +356,12 @@ export function AuctionStage({
 
       <StatusDock room={room} me={me} maxBid={maxBid} />
       {me.isHost ? (
-        <button className="auction-pause-button" type="button" onClick={() => void onTogglePause()}>
+        <button
+          className="auction-pause-button"
+          data-testid="auction-pause"
+          type="button"
+          onClick={() => void onTogglePause()}
+        >
           {room.isPaused ? 'RESUME AUCTION' : 'PAUSE AUCTION'}
         </button>
       ) : null}

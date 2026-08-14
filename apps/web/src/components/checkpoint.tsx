@@ -1,8 +1,9 @@
 'use client';
 
 import type { CheckpointView, RoomMemberView, RoomView } from '@gavel-xi/shared';
+import { useEffect, useMemo, useState } from 'react';
 import { formatMoney, initials } from '@/lib/format';
-import { CrownIcon, GavelIcon } from './icons';
+import { ArrowIcon, CrownIcon, GavelIcon } from './icons';
 import { TeamBoard } from './team-check';
 
 function MemberName({ room, memberId }: { room: RoomView; memberId: string }) {
@@ -67,7 +68,7 @@ function CheckpointContent({ room, checkpoint }: { room: RoomView; checkpoint: C
           index={2}
           label="BEST BUSINESS"
           value={<MemberName room={room} memberId={checkpoint.bestBusinessMemberId} />}
-          detail="Value and current form aligned"
+          detail="Value and role profile aligned"
           member={business}
         />
         <ReportCard
@@ -137,6 +138,28 @@ export function Checkpoint({
   onBroadcast: () => Promise<{ ok: boolean }>;
 }) {
   const checkpoint = room.checkpoint;
+  const directors = useMemo(
+    () => room.members.filter((member) => !member.isSpectator),
+    [room.members],
+  );
+  const [activeDirector, setActiveDirector] = useState(() =>
+    Math.max(
+      0,
+      directors.findIndex((member) => member.id === me.id),
+    ),
+  );
+  const activeMember = directors[Math.min(activeDirector, Math.max(0, directors.length - 1))] ?? me;
+
+  useEffect(() => {
+    const mine = directors.findIndex((member) => member.id === me.id);
+    setActiveDirector(Math.max(0, mine));
+  }, [checkpoint?.number, me.id]);
+
+  const selectDirector = (index: number) => {
+    if (directors.length === 0) return;
+    setActiveDirector((index + directors.length) % directors.length);
+  };
+
   return (
     <main className="checkpoint" data-testid="checkpoint-screen">
       <div className="stadium-lines" />
@@ -175,6 +198,57 @@ export function Checkpoint({
           <h2>THE TABLE IS STILL MOVING</h2>
         </div>
       )}
+      {checkpoint ? (
+        <section className="checkpoint-squad-reel" data-testid="checkpoint-squads">
+          <header>
+            <div>
+              <p className="eyebrow">
+                <span>EVERY DIRECTOR</span> SQUAD REVIEW
+              </p>
+              <h2>{activeMember.name}&apos;S WINDOW</h2>
+            </div>
+            <div className="checkpoint-squad-reel__controls">
+              <button
+                aria-label="Previous director squad"
+                data-testid="checkpoint-squad-previous"
+                type="button"
+                onClick={() => selectDirector(activeDirector - 1)}
+              >
+                <ArrowIcon />
+              </button>
+              <span data-testid="checkpoint-squad-index">
+                {activeDirector + 1} / {directors.length}
+              </span>
+              <button
+                aria-label="Next director squad"
+                data-testid="checkpoint-squad-next"
+                type="button"
+                onClick={() => selectDirector(activeDirector + 1)}
+              >
+                <ArrowIcon />
+              </button>
+            </div>
+          </header>
+          <div className="checkpoint-squad-reel__board" key={activeMember.id}>
+            <TeamBoard room={room} member={activeMember} />
+          </div>
+          <nav aria-label="Choose a director squad">
+            {directors.map((member, index) => (
+              <button
+                aria-current={index === activeDirector ? 'true' : undefined}
+                className={index === activeDirector ? 'is-active' : ''}
+                data-testid={`checkpoint-squad-director-${index + 1}`}
+                key={member.id}
+                type="button"
+                onClick={() => selectDirector(index)}
+              >
+                <i style={{ background: member.color }} />
+                {member.name}
+              </button>
+            ))}
+          </nav>
+        </section>
+      ) : null}
       <footer className="checkpoint__footer">
         <p>
           <i /> PROVISIONAL MODEL — NO VERDICT IS FINAL UNTIL THE WINDOW CLOSES
@@ -193,11 +267,6 @@ export function Checkpoint({
           </span>
         )}
       </footer>
-      {checkpoint && me ? (
-        <div className="checkpoint-team-preview">
-          <TeamBoard room={room} member={me} compact />
-        </div>
-      ) : null}
     </main>
   );
 }

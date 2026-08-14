@@ -61,7 +61,7 @@ const configSchema = z
     VALUATION_API_KEY: optionalNonemptyString,
     GROQ_API_KEY: optionalNonemptyString,
     GROQ_MODEL: z.string().min(1).default('openai/gpt-oss-20b'),
-    GROQ_TIMEOUT_MS: z.coerce.number().int().min(250).max(30_000).default(5_000),
+    GROQ_TIMEOUT_MS: z.coerce.number().int().min(250).max(30_000).default(15_000),
     DEBUG_ROUTES: z.preprocess(
       (value) => (value === 'true' ? true : value === 'false' ? false : value),
       z.boolean().optional(),

@@ -20,27 +20,30 @@ const slot = (
 ): SlotTemplate => ({ label, position, compatiblePositions, x, y });
 
 const GK = slot('GK', 'GK', ['GK'], 50, 92);
-const LB = slot('LB', 'LB', ['LB', 'LWB'], 13, 72);
+const LB = slot('LB', 'LB', ['LB'], 13, 72);
 const LCB = slot('CB', 'CB', ['CB'], 37, 78);
 const RCB = slot('CB', 'CB', ['CB'], 63, 78);
-const RB = slot('RB', 'RB', ['RB', 'RWB'], 87, 72);
-const LWB = slot('LWB', 'LWB', ['LWB', 'LB'], 11, 61);
-const RWB = slot('RWB', 'RWB', ['RWB', 'RB'], 89, 61);
-const LDM = slot('DM', 'DM', ['DM', 'CM'], 37, 59);
-const RDM = slot('DM', 'DM', ['DM', 'CM'], 63, 59);
-const LCM = slot('CM', 'CM', ['CM', 'DM', 'AM'], 29, 53);
-const CM = slot('CM', 'CM', ['CM', 'DM', 'AM'], 50, 56);
-const RCM = slot('CM', 'CM', ['CM', 'DM', 'AM'], 71, 53);
-const LM = slot('LM', 'LW', ['LW', 'LWB', 'AM'], 14, 47);
-const RM = slot('RM', 'RW', ['RW', 'RWB', 'AM'], 86, 47);
-const AM = slot('AM', 'AM', ['AM', 'CM', 'LW', 'RW'], 50, 38);
-const LAM = slot('AM', 'AM', ['AM', 'LW', 'CM'], 34, 35);
-const RAM = slot('AM', 'AM', ['AM', 'RW', 'CM'], 66, 35);
-const LW = slot('LW', 'LW', ['LW', 'RW', 'AM', 'ST'], 17, 20);
-const RW = slot('RW', 'RW', ['RW', 'LW', 'AM', 'ST'], 83, 20);
-const ST = slot('ST', 'ST', ['ST', 'LW', 'RW'], 50, 12);
-const LST = slot('ST', 'ST', ['ST', 'LW', 'RW'], 38, 14);
-const RST = slot('ST', 'ST', ['ST', 'LW', 'RW'], 62, 14);
+const RB = slot('RB', 'RB', ['RB'], 87, 72);
+// Wing-back is the tactical slot label. The catalog's verified source position
+// is full-back, so these slots recruit exact LB/RB players instead of inventing
+// a second position or borrowing an unrelated role.
+const LWB = slot('LWB', 'LB', ['LB'], 11, 61);
+const RWB = slot('RWB', 'RB', ['RB'], 89, 61);
+const LDM = slot('DM', 'DM', ['DM'], 37, 59);
+const RDM = slot('DM', 'DM', ['DM'], 63, 59);
+const LCM = slot('CM', 'CM', ['CM'], 29, 53);
+const CM = slot('CM', 'CM', ['CM'], 50, 56);
+const RCM = slot('CM', 'CM', ['CM'], 71, 53);
+const LM = slot('LM', 'LW', ['LW'], 14, 47);
+const RM = slot('RM', 'RW', ['RW'], 86, 47);
+const AM = slot('AM', 'AM', ['AM'], 50, 38);
+const LAM = slot('AM', 'AM', ['AM'], 34, 35);
+const RAM = slot('AM', 'AM', ['AM'], 66, 35);
+const LW = slot('LW', 'LW', ['LW'], 17, 20);
+const RW = slot('RW', 'RW', ['RW'], 83, 20);
+const ST = slot('ST', 'ST', ['ST'], 50, 12);
+const LST = slot('ST', 'ST', ['ST'], 38, 14);
+const RST = slot('ST', 'ST', ['ST'], 62, 14);
 const MANAGER = slot('Manager', 'MANAGER', ['MANAGER'], 50, 102);
 
 const templates: Record<FormationName, readonly SlotTemplate[]> = {

@@ -15,7 +15,11 @@ import type { PersistedEvent, StoredMember, StoredRoom } from './domain.js';
 import type { AuthoritativeEngine, EngineEffect, EngineMutation } from './engine-port.js';
 import { DomainError } from './errors.js';
 import type { RealtimePublisher } from './events.js';
-import { mergeEvaluationNarrative, type EvaluationNarrativeEnricher } from './narrative.js';
+import {
+  mergeEvaluationNarrative,
+  type EvaluationNarrativeEnricher,
+  withDeterministicAnalystReport,
+} from './narrative.js';
 import { PersistenceConflictError, type PersistenceAdapter } from './persistence.js';
 import type { FrozenSnapshotService } from './providers/snapshots.js';
 import type { SessionTokenService } from './security.js';
@@ -337,6 +341,64 @@ export class RoomService {
           error instanceof Error ? error.message : 'Football data is currently unavailable.',
         );
       }
+    });
+  }
+
+  /**
+   * Opens a completed room for another auction without changing its identity.
+   * The event revision remains monotonic, while every game-scoped field is
+   * cleared so a different formation and settings can be selected safely.
+   */
+  async restart(roomCode: string, memberId: string): Promise<RoomView> {
+    return this.#cache.withLock(`room:${roomCode}`, async () => {
+      const room = await this.#requireRoom(roomCode);
+      const actor = this.#requireMember(room, memberId);
+      if (!actor.isHost) throw new DomainError('NOT_HOST', 'Only the host can start a rematch.');
+      if (!['RESULTS', 'COMPLETE'].includes(room.phase)) {
+        throw new DomainError(
+          'REMATCH_UNAVAILABLE',
+          'A rematch can only begin after the final result is ready.',
+        );
+      }
+
+      const removedMemberIds = room.members
+        .filter((member) => !member.isConnected && member.id !== actor.id)
+        .map((member) => member.id);
+      room.members = room.members.filter((member) => member.isConnected || member.id === actor.id);
+      for (const member of room.members.filter(({ isSpectator }) => !isSpectator)) {
+        member.isReady = false;
+        member.budgetEUR = room.settings.budgetEUR;
+        member.spentEUR = 0;
+        member.emergencyAllocations = 0;
+      }
+      room.phase = 'LOBBY';
+      room.seed = null;
+      room.seedCommitment = null;
+      room.snapshotId = null;
+      room.snapshotUpdatedAt = null;
+      room.currentLot = null;
+      room.squads = [];
+      room.auctionSequence = 0;
+      room.resolvedCycles = 0;
+      room.totalCycles = 0;
+      room.checkpoint = null;
+      room.evaluation = null;
+      room.replay = [];
+      room.hiddenState = null;
+      room.completedAt = null;
+
+      await this.#commit(room, 'GAME_RESTARTED', {
+        memberId,
+        retainedMemberIds: room.members.map((member) => member.id),
+        removedMemberIds,
+      });
+      await Promise.all(
+        removedMemberIds.map((removedMemberId) =>
+          this.#cache.delete(presenceKey(roomCode, removedMemberId)),
+        ),
+      );
+      this.#broadcastState(room);
+      return roomView(room, this.#now());
     });
   }
 
@@ -738,6 +800,23 @@ export class RoomService {
     if (['RESULTS', 'COMPLETE'].includes(room.phase) && room.completedAt === null) {
       room.completedAt = this.#now();
     }
+    if (room.evaluation !== null) {
+      const narrativeInput = {
+        roomCode: room.code,
+        members: room.members.map(({ id, name }) => ({ id, name })),
+        evaluation: room.evaluation,
+        formation: room.settings.formation,
+        squads: room.squads.map((entry) => ({
+          memberId: entry.memberId,
+          player: entry.candidate.commonName || entry.candidate.fullName,
+          position: entry.candidate.preferredPosition,
+          club: entry.candidate.club,
+          priceEUR: entry.purchasePriceEUR,
+          marketValueEUR: entry.marketValueEUR,
+        })),
+      };
+      room.evaluation = withDeterministicAnalystReport(narrativeInput);
+    }
     if (room.evaluation !== null && this.#narratives !== undefined) {
       try {
         const authoritative = room.evaluation;
@@ -745,6 +824,15 @@ export class RoomService {
           roomCode: room.code,
           members: room.members.map(({ id, name }) => ({ id, name })),
           evaluation: authoritative,
+          formation: room.settings.formation,
+          squads: room.squads.map((entry) => ({
+            memberId: entry.memberId,
+            player: entry.candidate.commonName || entry.candidate.fullName,
+            position: entry.candidate.preferredPosition,
+            club: entry.candidate.club,
+            priceEUR: entry.purchasePriceEUR,
+            marketValueEUR: entry.marketValueEUR,
+          })),
         });
         room.evaluation = mergeEvaluationNarrative(authoritative, proposed);
       } catch {

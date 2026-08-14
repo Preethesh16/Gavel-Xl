@@ -19,6 +19,14 @@ test('desktop directors create, join, ready and start with host authority enforc
     const roomCode = await createRoom(host.page, host.name);
     await expect(host.page.getByTestId('start-game')).toBeDisabled();
     await expect(host.page.getByTestId('waiting-for-player')).toBeVisible();
+    await expect(host.page.getByTestId('copy-invite')).toHaveAttribute(
+      'aria-label',
+      `Copy room code ${roomCode} and invite link`,
+    );
+    await host.page.getByTestId('copy-invite').click();
+    await expect(host.page.getByTestId('notice-toast')).toContainText(
+      new RegExp(`Room ${roomCode} copied|Room code: ${roomCode}`),
+    );
 
     await joinRoom(guest.page, roomCode, guest.name);
     await Promise.all(

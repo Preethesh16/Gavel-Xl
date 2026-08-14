@@ -60,7 +60,8 @@ export interface DebugRoomState {
   };
   evaluation: null | {
     metrics: Array<{ index: number; scores: Record<string, number> }>;
-    teams: Array<{ memberId: string }>;
+    teams: Array<{ memberId: string; rank: number }>;
+    analystReport?: { source: 'engine' | 'groq'; winnerId: string };
   };
   replay: Array<{ type: string }>;
 }
@@ -444,7 +445,10 @@ export async function playToResults(
   host: Director,
   directors: Director[],
   roomCode: string,
-  options: { onCheckpoint?: (number: number) => Promise<void> | void; maxLots?: number } = {},
+  options: {
+    onCheckpoint?: (number: number) => Promise<void> | void;
+    maxLots?: number;
+  } = {},
 ): Promise<{ lots: number; checkpoints: number }> {
   let lots = 0;
   let checkpoints = 0;
@@ -499,10 +503,7 @@ export async function attachScreenshot(
     caret: 'hide' as const,
     path: screenshotPath,
   };
-  const body =
-    profile === 'mobile' && name === 'auction'
-      ? await page.getByTestId('auction-screen').screenshot(screenshotOptions)
-      : await page.screenshot(screenshotOptions);
+  const body = await page.screenshot(screenshotOptions);
   // PNG IHDR stores the physical width at byte offset 16. Guard against
   // screenshot-time layout expansion, which can otherwise produce a very wide
   // blank canvas even when the live mobile document itself has no overflow.

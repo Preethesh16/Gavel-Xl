@@ -101,7 +101,7 @@ export function ShareResults({ room, evaluation }: { room: RoomView; evaluation:
         </div>
         <footer>
           <span>BUILD THE XI. BREAK THE BANK.</span>
-          <span>100 METRICS · CURRENT FORM</span>
+          <span>100 METRICS · LOCKED MODEL</span>
         </footer>
       </article>
       <p className="share-results__hint">

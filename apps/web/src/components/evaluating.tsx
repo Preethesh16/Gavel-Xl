@@ -1,8 +1,11 @@
+'use client';
+
 import type { RoomView } from '@gavel-xi/shared';
+import { useEffect, useState } from 'react';
 
 const STEPS = [
   'Squad structure',
-  'Current form',
+  'Player profiles',
   'Manager fit',
   'Auction efficiency',
   '100-match model',
@@ -10,7 +13,16 @@ const STEPS = [
 
 export function Evaluating({ room }: { room: RoomView }) {
   const populated = room.evaluation?.metrics.length ?? 0;
-  const progress = populated ? Math.min(100, populated) : room.phase === 'FINALIZING' ? 12 : 64;
+  const [simulatedProgress, setSimulatedProgress] = useState(room.phase === 'FINALIZING' ? 8 : 58);
+  useEffect(() => {
+    if (populated) return;
+    const timer = window.setInterval(
+      () => setSimulatedProgress((current) => Math.min(94, current + (current < 55 ? 7 : 2))),
+      process.env.NEXT_PUBLIC_E2E === 'true' ? 20 : 480,
+    );
+    return () => window.clearInterval(timer);
+  }, [populated]);
+  const progress = populated ? Math.min(100, populated) : simulatedProgress;
   return (
     <main className="evaluating" data-testid="evaluation-loading">
       <div className="stadium-lines" />
@@ -48,7 +60,11 @@ export function Evaluating({ room }: { room: RoomView }) {
           </li>
         ))}
       </ol>
-      <p className="evaluating__note">Numbers decide the table. Narrative only explains it.</p>
+      <div className="evaluating__ticker" aria-live="polite">
+        <span>{STEPS[Math.min(STEPS.length - 1, Math.floor(progress / 20))]}</span>
+        <strong>{progress < 95 ? 'ANALYSIS IN PROGRESS' : 'LOCKING THE VERDICT'}</strong>
+      </div>
+      <p className="evaluating__note">Numbers decide the table. Groq explains the football.</p>
     </main>
   );
 }

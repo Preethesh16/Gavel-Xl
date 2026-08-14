@@ -78,16 +78,33 @@ describe('formation presets', () => {
     expect(FORMATIONS['4-3-3'].slots).toHaveLength(12);
   });
 
-  it('uses explicit slot compatibility for eligibility', () => {
+  it('uses exact football positions for slot eligibility', () => {
     const formation = resolveFormation('4-2-3-1');
     const leftBack = formation.slots.find(({ position }) => position === 'LB');
     const attackingMidfield = formation.slots.find(({ position }) => position === 'AM');
 
     expect(leftBack).toBeDefined();
     expect(attackingMidfield).toBeDefined();
-    expect(isPositionCompatible(leftBack!, ['LWB'])).toBe(true);
+    expect(isPositionCompatible(leftBack!, ['LB'])).toBe(true);
+    expect(isPositionCompatible(leftBack!, ['LWB'])).toBe(false);
     expect(isPositionCompatible(leftBack!, ['RB', 'CB'])).toBe(false);
-    expect(isPositionCompatible(attackingMidfield!, ['LW'])).toBe(true);
+    expect(isPositionCompatible(attackingMidfield!, ['AM'])).toBe(true);
+    expect(isPositionCompatible(attackingMidfield!, ['LW'])).toBe(false);
+
+    for (const preset of Object.values(FORMATIONS)) {
+      for (const formationSlot of preset.slots) {
+        expect(formationSlot.compatiblePositions).toEqual([formationSlot.position]);
+      }
+    }
+  });
+
+  it('keeps wing-back presentation roles backed by verified full-back positions', () => {
+    const formation = resolveFormation('3-5-2');
+    const leftWingBack = formation.slots.find(({ label }) => label === 'LWB');
+    const rightWingBack = formation.slots.find(({ label }) => label === 'RWB');
+
+    expect(leftWingBack).toMatchObject({ position: 'LB', compatiblePositions: ['LB'] });
+    expect(rightWingBack).toMatchObject({ position: 'RB', compatiblePositions: ['RB'] });
   });
 });
 

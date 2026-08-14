@@ -78,11 +78,26 @@ export default function Home() {
   const copyInvite = async () => {
     if (!game.room) return;
     const url = `${window.location.origin}/?room=${game.room.code}`;
+    const invite = `Join my Gavel XI room ${game.room.code}: ${url}`;
     try {
-      await navigator.clipboard.writeText(url);
-      game.pushNotice('Invite copied. Send it to your rival.');
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(invite);
+      game.pushNotice(`Room ${game.room.code} copied with its invite link.`);
     } catch {
-      game.pushNotice(`Room code: ${game.room.code}`);
+      const fallback = document.createElement('textarea');
+      fallback.value = invite;
+      fallback.setAttribute('readonly', '');
+      fallback.style.position = 'fixed';
+      fallback.style.opacity = '0';
+      document.body.append(fallback);
+      fallback.select();
+      const copied = document.execCommand('copy');
+      fallback.remove();
+      game.pushNotice(
+        copied
+          ? `Room ${game.room.code} copied with its invite link.`
+          : `Room code: ${game.room.code}`,
+      );
     }
   };
 
@@ -150,7 +165,12 @@ export default function Home() {
       ) : null}
       {room.phase === 'RESULTS' || room.phase === 'COMPLETE' ? (
         room.evaluation ? (
-          <ResultsHub room={room} me={me} />
+          <ResultsHub
+            room={room}
+            me={me}
+            busyAction={game.busyAction}
+            onRestart={game.restartGame}
+          />
         ) : (
           <Evaluating room={room} />
         )

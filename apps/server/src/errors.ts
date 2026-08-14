@@ -11,6 +11,7 @@ export type ErrorCode =
   | 'NOT_DIRECTOR'
   | 'LOBBY_CLOSED'
   | 'GAME_ALREADY_STARTED'
+  | 'REMATCH_UNAVAILABLE'
   | 'NOT_READY'
   | 'TOO_FEW_PLAYERS'
   | 'RATE_LIMITED'

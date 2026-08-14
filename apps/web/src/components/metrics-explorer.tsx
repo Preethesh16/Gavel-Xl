@@ -102,10 +102,12 @@ export function MetricsExplorer({
                     <span>{member.name}</span>
                     <i>
                       <b
-                        style={{
-                          width: `${Math.max(0, Math.min(100, score))}%`,
-                          background: member.color,
-                        }}
+                        style={
+                          {
+                            '--metric-width': `${Math.max(0, Math.min(100, score))}%`,
+                            background: member.color,
+                          } as React.CSSProperties
+                        }
                       />
                     </i>
                     <strong>{score.toFixed(1)}</strong>

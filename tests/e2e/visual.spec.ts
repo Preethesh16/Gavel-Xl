@@ -70,6 +70,8 @@ test('landing, lobby, auction and results stay readable without browser errors',
     await setLargeBudget(page, roomCode);
     await readyAndStart(host, [guest], roomCode, { preserveLargeBudget: true });
     await expect(page.getByTestId('player-card')).toBeVisible();
+    const pause = page.getByTestId('auction-pause');
+    await expect(pause).toHaveText('PAUSE AUCTION');
     await expectNoHorizontalOverflow(page, 'auction');
     await expect
       .poll(
@@ -93,6 +95,11 @@ test('landing, lobby, auction and results stay readable without browser errors',
     const viewport = page.viewportSize();
     if (testInfo.project.name.includes('mobile')) {
       expect(viewport?.width).toBeLessThanOrEqual(600);
+      expect(await page.evaluate(() => window.innerWidth)).toBe(viewport?.width);
+      await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+        'content',
+        /width=device-width/,
+      );
       for (const locator of [
         page.getByTestId('results-screen'),
         page.getByTestId('results-podium'),

@@ -70,7 +70,9 @@ export class CatalogProvider implements FootballDataProvider {
       teamsFound: new Set(players.map((player) => player.club)).size,
       activePlayersFound: players.length,
       managersFound: managers.length,
-      statsCoveragePercent: 100,
+      // The open catalog contains identity, club, position and valuation data.
+      // Its role/form numbers are market-derived estimates, not live match stats.
+      statsCoveragePercent: 0,
       positionCoverage: positions,
       valuationCoveragePercent: Math.round(
         (players.filter((player) => player.valuation.valueEUR !== null).length /

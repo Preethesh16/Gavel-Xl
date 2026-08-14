@@ -240,7 +240,7 @@ export async function createTransfermarktCatalog(): Promise<{
       role: role(position, baseline),
       valuation: valuation(value, updatedAt),
       dataSource:
-        'Transfermarkt-derived open catalogue; profiles and market valuations; imported snapshot',
+        'Transfermarkt-derived open catalogue; identity, club and market value with market-derived role estimates; no live match statistics',
       dataUpdatedAt: updatedAt,
     };
     const entries = playersByPosition.get(position) ?? [];
@@ -268,8 +268,8 @@ export async function createTransfermarktCatalog(): Promise<{
           nationality: 'Unknown',
           club: club['name']!,
           league: club['domestic_competition_id']!,
-        positions: ['MANAGER'] as Position[],
-        preferredPosition: 'MANAGER' as Position,
+          positions: ['MANAGER'] as Position[],
+          preferredPosition: 'MANAGER' as Position,
           imageUrl: null,
           season: 'catalog',
           appearances: 0,
@@ -285,7 +285,8 @@ export async function createTransfermarktCatalog(): Promise<{
           role: role('MANAGER', 70),
           tactics: managerTactics,
           valuation: valuation(10_000_000, updatedAt),
-          dataSource: 'Transfermarkt-derived open catalogue; club coach at import time',
+          dataSource:
+            'Transfermarkt-derived open catalogue; club coach at import time with neutral tactical estimates',
           dataUpdatedAt: updatedAt,
         },
       ];

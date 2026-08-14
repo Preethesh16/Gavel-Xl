@@ -1,10 +1,10 @@
 'use client';
 
 import type { RoomMemberView, RoomView, SquadEntryView } from '@gavel-xi/shared';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { buildLineup } from '@/lib/formations';
 import { formatMoney, initials } from '@/lib/format';
-import { CloseIcon, CrownIcon } from './icons';
+import { ArrowIcon, CloseIcon, CrownIcon } from './icons';
 
 function PitchPlayer({
   entry,
@@ -21,17 +21,10 @@ function PitchPlayer({
     <div
       className={`pitch-player ${entry ? 'pitch-player--filled' : ''}`}
       style={{ left: `${x}%`, top: `${y}%` }}
+      title={entry ? `${entry.candidate.commonName || entry.candidate.fullName} · ${label}` : label}
     >
-      <span>
-        {entry ? initials(entry.candidate.commonName || entry.candidate.fullName) : label}
-      </span>
+      <span>{label}</span>
       <b>{entry ? entry.candidate.commonName || entry.candidate.fullName : 'EMPTY'}</b>
-      {entry ? (
-        <small className="pitch-player__details">
-          {entry.candidate.age} · {entry.candidate.nationality} · {entry.candidate.club}
-        </small>
-      ) : null}
-      {entry ? <small>{formatMoney(entry.purchasePriceEUR, true)}</small> : null}
     </div>
   );
 }
@@ -113,7 +106,22 @@ interface TeamCheckProps {
 
 export function TeamCheck({ room, me, onClose, onBroadcast }: TeamCheckProps) {
   const [scope, setScope] = useState<'MY' | 'ALL'>('MY');
-  const shown = scope === 'MY' ? [me] : room.members.filter((member) => !member.isSpectator);
+  const [activeDirector, setActiveDirector] = useState(0);
+  const directors = useMemo(
+    () => room.members.filter((member) => !member.isSpectator),
+    [room.members],
+  );
+  const shown = scope === 'MY' ? [me] : directors;
+  const activeMember = shown[Math.min(activeDirector, Math.max(0, shown.length - 1))] ?? me;
+
+  useEffect(() => {
+    setActiveDirector(0);
+  }, [scope]);
+
+  const selectDirector = (index: number) => {
+    if (shown.length === 0) return;
+    setActiveDirector((index + shown.length) % shown.length);
+  };
 
   return (
     <div
@@ -163,10 +171,34 @@ export function TeamCheck({ room, me, onClose, onBroadcast }: TeamCheckProps) {
             ALL TEAMS
           </button>
         </nav>
-        <div className={`team-check__boards ${shown.length > 1 ? 'team-check__boards--all' : ''}`}>
-          {shown.map((member) => (
-            <TeamBoard key={member.id} room={room} member={member} compact={shown.length > 1} />
-          ))}
+        {scope === 'ALL' && shown.length > 1 ? (
+          <div className="team-director-switcher" data-testid="team-director-switcher">
+            <button
+              aria-label="Previous director"
+              data-testid="team-director-previous"
+              type="button"
+              onClick={() => selectDirector(activeDirector - 1)}
+            >
+              <ArrowIcon />
+            </button>
+            <div>
+              <span>
+                DIRECTOR {activeDirector + 1} / {shown.length}
+              </span>
+              <strong data-testid="team-director-current">{activeMember.name}</strong>
+            </div>
+            <button
+              aria-label="Next director"
+              data-testid="team-director-next"
+              type="button"
+              onClick={() => selectDirector(activeDirector + 1)}
+            >
+              <ArrowIcon />
+            </button>
+          </div>
+        ) : null}
+        <div className="team-check__boards">
+          <TeamBoard key={activeMember.id} room={room} member={activeMember} />
         </div>
         {me.isHost && room.phase === 'CHECKPOINT' ? (
           <button

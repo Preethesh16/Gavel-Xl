@@ -92,10 +92,12 @@ function definedSettings(value: Record<string, unknown>): Partial<RoomSettingsIn
   ) as Partial<RoomSettingsInput>;
 }
 
+const CANONICAL_WEB_ORIGIN = 'https://gavel-xl-web.vercel.app';
+
 function origins(config: ServerConfig): string[] {
   return [
     ...new Set(
-      [config.WEB_ORIGIN, config.CLIENT_ORIGIN]
+      [config.WEB_ORIGIN, config.CLIENT_ORIGIN, CANONICAL_WEB_ORIGIN]
         .filter((value): value is string => value !== undefined)
         .flatMap((value) => value.split(','))
         .map((origin) => origin.trim())
@@ -581,6 +583,18 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
           result.nextWakeAt === null ? null : { wakeAt: result.nextWakeAt },
         );
         safeCallback(callback, { ok: true, data: result.room });
+      } catch (error) {
+        safeCallback(callback, { ok: false, error: errorMessage(error) });
+      }
+    });
+
+    socket.on('game:restart', async (raw, callback) => {
+      try {
+        const input = parsed(socketSchemas['game:restart'], raw);
+        const actor = session(socket, input.roomCode);
+        const room = await roomService.restart(input.roomCode, actor.memberId);
+        scheduler.schedule(input.roomCode, null);
+        safeCallback(callback, { ok: true, data: room });
       } catch (error) {
         safeCallback(callback, { ok: false, error: errorMessage(error) });
       }

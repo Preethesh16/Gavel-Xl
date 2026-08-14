@@ -249,7 +249,7 @@ export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: Landing
       <footer className="landing__footer">
         <span>© GAVEL XI</span>
         <span className="landing__footer-line" />
-        <span>CURRENT FORM · LIVE MARKET · SEEDED FAIRNESS</span>
+        <span>PLAYER PROFILES · MARKET VALUES · SEEDED FAIRNESS</span>
       </footer>
     </main>
   );

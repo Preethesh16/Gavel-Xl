@@ -1,5 +1,5 @@
 import type { CandidateSnapshot, FormationSlot, RoomSettingsInput } from '@gavel-xi/shared';
-import { getFormation, isPositionCompatible } from './formations.js';
+import { getFormation } from './formations.js';
 import { positionPercentiles, scoreCurrentForm } from './ratings.js';
 import { createSeededRandom, nextRandom, shuffle, type SeededRandom } from './rng.js';
 import type {
@@ -63,17 +63,54 @@ function availableForSlot(
       candidate.valuation.valueEUR !== null &&
       candidate.valuation.valueEUR > 0 &&
       (slot.position === 'MANAGER'
-        ? candidate.kind === 'MANAGER'
-        : candidate.kind === 'PLAYER' && isPositionCompatible(slot, candidate.positions)),
+        ? candidate.kind === 'MANAGER' && candidate.preferredPosition === 'MANAGER'
+        : candidate.kind === 'PLAYER' &&
+          candidate.preferredPosition === slot.position &&
+          candidate.positions.includes(slot.position)),
   );
+}
+
+const STAR_RANK_POWER = 6;
+const STAR_RANK_BOOST = 30;
+
+/**
+ * Builds a weighted random order without replacement. Higher-ranked strong
+ * candidates receive a pronounced star preference, while the baseline weight
+ * leaves every strong candidate with a real chance. The random stream remains
+ * entirely seed-derived, so replays are deterministic.
+ */
+function starPreferredOrder(
+  rankedCandidates: CandidateSnapshot[],
+  random: SeededRandom,
+): { values: CandidateSnapshot[]; random: SeededRandom } {
+  let cursor = random;
+  const weighted = rankedCandidates.map((candidate, index) => {
+    const draw = nextRandom(cursor);
+    cursor = draw.random;
+    const rank = (rankedCandidates.length - index) / Math.max(1, rankedCandidates.length);
+    const weight = 1 + STAR_RANK_BOOST * Math.pow(rank, STAR_RANK_POWER);
+    return {
+      candidate,
+      // Exponential-race sampling gives weighted draws without replacement.
+      priority: -Math.log(Math.max(Number.EPSILON, draw.value)) / weight,
+    };
+  });
+  weighted.sort(
+    (left, right) =>
+      left.priority - right.priority || left.candidate.id.localeCompare(right.candidate.id),
+  );
+  return { values: weighted.map(({ candidate }) => candidate), random: cursor };
 }
 
 function diversify(
   candidates: CandidateSnapshot[],
   count: number,
   random: SeededRandom,
+  preferHigherRanks = false,
 ): { selected: CandidateSnapshot[]; random: SeededRandom } {
-  const mixed = shuffle(candidates, random);
+  const mixed = preferHigherRanks
+    ? starPreferredOrder(candidates, random)
+    : shuffle(candidates, random);
   const selected: CandidateSnapshot[] = [];
   const clubCounts = new Map<string, number>();
   const nationalityCounts = new Map<string, number>();
@@ -158,7 +195,7 @@ function candidatesForCycle(
     strongWithoutFallback.length >= count - 1
       ? strongWithoutFallback
       : [...strongWithoutFallback, ...fillers.slice(0, count - 1 - strongWithoutFallback.length)];
-  const strongPick = diversify(strongPool, count - 1, fallbackPick.random);
+  const strongPick = diversify(strongPool, count - 1, fallbackPick.random, true);
   const tiered: Array<{ candidate: CandidateSnapshot; tier: CandidateTier }> = [
     ...strongPick.selected.map((candidate) => ({ candidate, tier: 'STRONG' as const })),
     ...fallbackPick.selected.map((candidate) => ({ candidate, tier: 'FALLBACK' as const })),

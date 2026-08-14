@@ -38,8 +38,13 @@ export function Podium({ room, evaluation }: { room: RoomView; evaluation: Evalu
         <h1>
           WINDOW <em>CLOSED</em>
         </h1>
-        <p>One hundred metrics. Every current-form signal. No hard-coded winner.</p>
+        <p>One hundred locked metrics. Every role and value signal. No hard-coded winner.</p>
       </header>
+      <section className="champion-verdict">
+        <span>THE MODEL&apos;S WINNER</span>
+        <h2>{room.members.find(({ id }) => id === rankings[0]?.memberId)?.name}</h2>
+        <p>{evaluation.analystReport?.finalWhy ?? rankings[0]?.strengths.join(' · ')}</p>
+      </section>
       <div className="podium-stage">
         {podiumOrder.map((team) => (
           <PodiumPlace room={room} team={team} key={team.memberId} />

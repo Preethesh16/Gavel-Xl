@@ -61,7 +61,9 @@ export function PlayerCard({ lot, phase }: { lot: PublicLot; phase: string }) {
         <p>
           {player.club} · {player.nationality}
         </p>
-        <h2 data-testid="revealed-player-name">{player.commonName || player.fullName}</h2>
+        <h2 data-testid="revealed-player-name" title={player.commonName || player.fullName}>
+          {player.commonName || player.fullName}
+        </h2>
         <div className="player-card__bio" data-testid="player-details">
           <span>{player.age} years</span>
           <span>{player.nationality}</span>

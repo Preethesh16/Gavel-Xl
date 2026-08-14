@@ -46,6 +46,7 @@ export interface ClientToServerEvents {
   'room:ready': (payload: ReadyPayload, callback: (ack: Ack<RoomView>) => void) => void;
   'room:leave': (payload: { roomCode: string }, callback: (ack: Ack) => void) => void;
   'game:start': (payload: { roomCode: string }, callback: (ack: Ack<RoomView>) => void) => void;
+  'game:restart': (payload: { roomCode: string }, callback: (ack: Ack<RoomView>) => void) => void;
   'auction:bid': (payload: BidInput, callback: (ack: Ack<{ room: RoomView }>) => void) => void;
   'auction:pass': (payload: PassInput, callback: (ack: Ack<{ room: RoomView }>) => void) => void;
   'team:request': (payload: TeamRequestPayload, callback: (ack: Ack<TeamResponse>) => void) => void;

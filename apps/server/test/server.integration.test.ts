@@ -115,6 +115,19 @@ async function createTwoPlayerRoom(url: string): Promise<{
 }
 
 describe('authoritative realtime server', () => {
+  it('allows the canonical Vercel client origin for HTTP and Socket.IO', async () => {
+    const { url } = await fixture();
+    const origin = 'https://gavel-xl-web.vercel.app';
+    const health = await fetch(`${url}/health`, { headers: { origin } });
+    const socketHandshake = await fetch(`${url}/socket.io/?EIO=4&transport=polling`, {
+      headers: { origin },
+    });
+
+    expect(health.headers.get('access-control-allow-origin')).toBe(origin);
+    expect(socketHandshake.status).toBe(200);
+    expect(socketHandshake.headers.get('access-control-allow-origin')).toBe(origin);
+  });
+
   it('sends an authoritative bid ceiling privately and restores it on reconnect', async () => {
     const { url } = await fixture();
     const { host, guest, hostSession, guestSession } = await createTwoPlayerRoom(url);
@@ -461,6 +474,29 @@ describe('authoritative realtime server', () => {
     ).toMatchObject({ ok: false, error: { code: 'AUCTION_CLOSED' } });
   });
 
+  it('lets only the host pause and resume the auction', async () => {
+    const { server, url } = await fixture();
+    const { host, guest, hostSession } = await createTwoPlayerRoom(url);
+    const roomCode = hostSession.room.code;
+    requireData(await emitAck<RoomView>(guest, 'room:ready', { roomCode, ready: true }));
+    requireData(await emitAck<RoomView>(host, 'game:start', { roomCode }));
+
+    expect(await emitAck<RoomView>(guest, 'auction:pause', { roomCode })).toMatchObject({
+      ok: false,
+      error: { code: 'NOT_HOST' },
+    });
+    expect(requireData(await emitAck<RoomView>(host, 'auction:pause', { roomCode })).isPaused).toBe(
+      true,
+    );
+    expect((await server.roomService.getRoom(roomCode)).isPaused).toBe(true);
+    expect(requireData(await emitAck<RoomView>(host, 'auction:pause', { roomCode })).isPaused).toBe(
+      false,
+    );
+    expect((await server.persistence.listEvents(roomCode)).map(({ type }) => type)).toEqual(
+      expect.arrayContaining(['AUCTION_PAUSED', 'AUCTION_RESUMED']),
+    );
+  });
+
   it('lets a stale scheduler wake adopt an authoritative extended deadline', async () => {
     let clock = Date.UTC(2026, 7, 13, 12);
     const { server, url } = await fixture({ now: () => clock });
@@ -501,6 +537,10 @@ describe('authoritative realtime server', () => {
       settings: { revealSeconds: 0 },
     });
     expect(guestSettings).toMatchObject({ ok: false, error: { code: 'NOT_HOST' } });
+    expect(await emitAck<RoomView>(host, 'game:restart', { roomCode })).toMatchObject({
+      ok: false,
+      error: { code: 'REMATCH_UNAVAILABLE' },
+    });
 
     const earlyStart = await emitAck<RoomView>(host, 'game:start', { roomCode });
     expect(earlyStart).toMatchObject({ ok: false, error: { code: 'NOT_READY' } });
@@ -713,5 +753,73 @@ describe('authoritative realtime server', () => {
     expect((await fetch(`${url}/api/rooms/${roomCode}/results`)).status).toBe(200);
     expect((await fetch(`${url}/api/rooms/${roomCode}/replay`)).status).toBe(200);
     expect((await fetch(`${url}/api/share/${roomCode}`)).status).toBe(200);
+
+    const spectator = await connect(url);
+    const spectatorSession = requireData(
+      await emitAck<SessionPayload>(spectator, 'room:join', { roomCode, name: 'Final Watcher' }),
+    );
+    expect(
+      spectatorSession.room.members.find(({ id }) => id === spectatorSession.memberId)?.isSpectator,
+    ).toBe(true);
+    expect(await emitAck<RoomView>(guest, 'game:restart', { roomCode })).toMatchObject({
+      ok: false,
+      error: { code: 'NOT_HOST' },
+    });
+    const guestLobbyState = nextSocketEvent<RoomView>(guest, 'room:state');
+    const spectatorLobbyState = nextSocketEvent<RoomView>(spectator, 'room:state');
+    const restarted = requireData(await emitAck<RoomView>(host, 'game:restart', { roomCode }));
+    expect(await guestLobbyState).toMatchObject({ code: roomCode, phase: 'LOBBY' });
+    expect(await spectatorLobbyState).toMatchObject({ code: roomCode, phase: 'LOBBY' });
+    expect(restarted).toMatchObject({
+      code: roomCode,
+      phase: 'LOBBY',
+      seed: null,
+      seedCommitment: null,
+      snapshotId: null,
+      snapshotUpdatedAt: null,
+      currentLot: null,
+      squads: [],
+      auctionSequence: 0,
+      resolvedCycles: 0,
+      totalCycles: 0,
+      checkpoint: null,
+      evaluation: null,
+      replay: [],
+      isPaused: false,
+    });
+    expect(restarted.settings.formation).toBe('4-2-1-3');
+    expect(restarted.members.map(({ id }) => id)).toEqual([
+      hostSession.memberId,
+      guestSession.memberId,
+      spectatorSession.memberId,
+    ]);
+    expect(
+      restarted.members
+        .filter(({ isSpectator }) => !isSpectator)
+        .map(({ isReady, budgetEUR, spentEUR, filledSlots }) => ({
+          isReady,
+          budgetEUR,
+          spentEUR,
+          filledSlots,
+        })),
+    ).toEqual([
+      { isReady: false, budgetEUR: 1_000_000_000, spentEUR: 0, filledSlots: 0 },
+      { isReady: false, budgetEUR: 1_000_000_000, spentEUR: 0, filledSlots: 0 },
+    ]);
+    expect(restarted.members.find(({ id }) => id === spectatorSession.memberId)).toMatchObject({
+      isSpectator: true,
+      budgetEUR: 0,
+      spentEUR: 0,
+      filledSlots: 0,
+    });
+    expect((await server.persistence.listEvents(roomCode)).at(-1)).toMatchObject({
+      type: 'GAME_RESTARTED',
+    });
+    await expect(
+      server.roomService.updateSettings(roomCode, hostSession.memberId, { formation: '4-4-2' }),
+    ).resolves.toMatchObject({ phase: 'LOBBY', settings: { formation: '4-4-2' } });
+    await expect(
+      emitAck<RoomView>(guest, 'room:ready', { roomCode, ready: true }),
+    ).resolves.toMatchObject({ ok: true, data: { phase: 'LOBBY' } });
   }, 20_000);
 });

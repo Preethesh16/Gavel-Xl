@@ -195,6 +195,100 @@ describe.skipIf(!infrastructureAvailable)('durable production adapters', () => {
     await restarted.close();
   });
 
+  it('deletes a completed game projection before pruning its disconnected drafted director', async () => {
+    const snapshot = await developmentSnapshot();
+    const writer = new PrismaPersistence({ connectionString: databaseUrl });
+    await writer.connect();
+    await writer.putSnapshot(snapshot);
+    const initial = gameRoom('FKRS22', 'restart-fk', snapshot);
+    await writer.create(initial, persistedEvent(initial, 'ROOM_CREATED'));
+
+    const completed = structuredClone(initial);
+    completed.phase = 'RESULTS';
+    completed.completedAt = completed.updatedAt + 1;
+    completed.updatedAt += 1;
+    completed.eventSequence += 1;
+    completed.members[1]!.isConnected = false;
+    completed.members[1]!.disconnectedAt = completed.updatedAt;
+    await writer.commit(completed, persistedEvent(completed, 'GAME_COMPLETED'));
+
+    const draftedMemberId = completed.members[1]!.id;
+    const lot = await prisma.auctionLot.findFirst({
+      where: { game: { room: { code: completed.code } } },
+      include: {
+        game: { select: { id: true } },
+        candidate: { select: { cycleId: true } },
+      },
+    });
+    expect(lot).not.toBeNull();
+    await prisma.bid.create({
+      data: {
+        lotId: lot!.id,
+        memberId: draftedMemberId,
+        amountEUR: lot!.openingBidEUR,
+        auctionSequence: lot!.sequence,
+        idempotencyKey: `restart-fk:${randomUUID()}`,
+        accepted: true,
+      },
+    });
+    await prisma.squadEntry.create({
+      data: {
+        id: `restart-fk-squad:${randomUUID()}`,
+        gameId: lot!.game.id,
+        memberId: draftedMemberId,
+        cycleId: lot!.candidate.cycleId,
+        slotId: 'restart-fk-slot',
+        candidateId: lot!.candidateId,
+        purchasePriceEUR: lot!.openingBidEUR,
+        marketValueEUR: lot!.openingBidEUR,
+        acquisition: 'AUCTION',
+      },
+    });
+    await prisma.auctionLot.update({
+      where: { id: lot!.id },
+      data: { winnerMemberId: draftedMemberId, soldPriceEUR: lot!.openingBidEUR },
+    });
+
+    const rematchLobby = structuredClone(completed);
+    rematchLobby.members = [rematchLobby.members[0]!];
+    rematchLobby.members[0]!.isReady = false;
+    rematchLobby.members[0]!.budgetEUR = rematchLobby.settings.budgetEUR;
+    rematchLobby.members[0]!.spentEUR = 0;
+    rematchLobby.members[0]!.emergencyAllocations = 0;
+    rematchLobby.phase = 'LOBBY';
+    rematchLobby.seed = null;
+    rematchLobby.seedCommitment = null;
+    rematchLobby.snapshotId = null;
+    rematchLobby.snapshotUpdatedAt = null;
+    rematchLobby.currentLot = null;
+    rematchLobby.squads = [];
+    rematchLobby.auctionSequence = 0;
+    rematchLobby.resolvedCycles = 0;
+    rematchLobby.totalCycles = 0;
+    rematchLobby.checkpoint = null;
+    rematchLobby.evaluation = null;
+    rematchLobby.replay = [];
+    rematchLobby.hiddenState = null;
+    rematchLobby.completedAt = null;
+    rematchLobby.updatedAt += 1;
+    rematchLobby.eventSequence += 1;
+
+    await expect(
+      writer.commit(rematchLobby, persistedEvent(rematchLobby, 'GAME_RESTARTED')),
+    ).resolves.toBeUndefined();
+    expect(await writer.get(rematchLobby.code)).toEqual(rematchLobby);
+    expect(await prisma.game.count({ where: { room: { code: rematchLobby.code } } })).toBe(0);
+    expect(
+      await prisma.roomMember.findMany({
+        where: { room: { code: rematchLobby.code } },
+        select: { id: true },
+      }),
+    ).toEqual([{ id: rematchLobby.members[0]!.id }]);
+    expect(await prisma.bid.count()).toBe(0);
+    expect(await prisma.squadEntry.count()).toBe(0);
+    await writer.close();
+  });
+
   it('atomically rejects a split-brain stale room commit', async () => {
     const first = new PrismaPersistence({ connectionString: databaseUrl });
     const second = new PrismaPersistence({ connectionString: databaseUrl });

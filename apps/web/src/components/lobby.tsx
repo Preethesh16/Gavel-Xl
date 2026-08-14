@@ -3,7 +3,7 @@
 import type { RoomMemberView, RoomSettingsInput, RoomView } from '@gavel-xi/shared';
 import { useMemo, useState } from 'react';
 import { MILLION, formatMoney } from '@/lib/format';
-import { ArrowIcon, CrownIcon, EyeIcon } from './icons';
+import { ArrowIcon, CopyIcon, CrownIcon, EyeIcon } from './icons';
 
 const FORMATIONS: RoomSettingsInput['formation'][] = [
   '4-2-1-3',
@@ -116,13 +116,19 @@ export function Lobby({
               : 'Directors are taking their seats. Set the rules, then open the market.'}
           </p>
         </div>
-        <div className="room-ticket">
-          <span>ROOM CODE</span>
+        <button
+          aria-label={`Copy room code ${room.code} and invite link`}
+          className="room-ticket"
+          data-testid="copy-invite"
+          type="button"
+          onClick={onCopyInvite}
+        >
+          <span>ROOM CODE · TAP TO COPY</span>
           <strong data-testid="lobby-room-code">{room.code}</strong>
-          <button data-testid="copy-invite" type="button" onClick={onCopyInvite}>
-            COPY INVITE
-          </button>
-        </div>
+          <small>
+            <CopyIcon /> COPY CODE + INVITE LINK
+          </small>
+        </button>
       </section>
 
       <div className="lobby__grid">
@@ -395,7 +401,7 @@ export function Lobby({
           </div>
           <p className="eyebrow">FREEZING LIVE DATA</p>
           <h2>BUILDING THE HIDDEN MARKET</h2>
-          <p>Current form. Current clubs. One fair, seeded reveal order.</p>
+          <p>Position-accurate profiles. Current clubs. One fair, seeded reveal order.</p>
         </div>
       ) : null}
     </main>

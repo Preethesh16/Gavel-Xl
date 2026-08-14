@@ -35,6 +35,18 @@ test('two directors complete every slot and receive the 100-metric verdict, reca
         await expect(host.page.getByTestId('checkpoint-rankings')).toContainText(
           'POSITIONS REMAIN',
         );
+        await expect(host.page.getByTestId('checkpoint-squads')).toBeVisible();
+        await expect(host.page.getByTestId('checkpoint-squad-index')).toHaveText('1 / 2');
+        const firstDirector = await host.page
+          .getByTestId('checkpoint-squad-director-1')
+          .innerText();
+        await host.page.getByTestId('checkpoint-squad-next').click();
+        await expect(host.page.getByTestId('checkpoint-squad-index')).toHaveText('2 / 2');
+        await expect(host.page.getByTestId('checkpoint-squads')).not.toContainText(
+          `${firstDirector}'S WINDOW`,
+        );
+        await expect(host.page.getByTestId('checkpoint-squads')).toContainText('REMAINING');
+        await expect(host.page.getByTestId('checkpoint-squads')).toContainText('SPENT');
       },
     });
     expect(progress.lots).toBe(12);
@@ -45,6 +57,13 @@ test('two directors complete every slot and receive the 100-metric verdict, reca
         expect(page.getByTestId('results-screen')).toBeVisible({ timeout: 15_000 }),
       ),
     );
+    await expect(host.page.getByTestId('results-podium')).toBeVisible();
+    await expect(host.page.getByTestId('rematch-panel')).toBeVisible();
+    await expect(host.page.getByTestId('rematch-draft')).toBeEnabled();
+    await host.page.getByTestId('results-tab-analysis').click();
+    await expect(host.page.getByTestId('analyst-report')).toBeVisible();
+    await expect(host.page.getByTestId('analyst-report')).toContainText('ENGINE ANALYST DESK');
+    await expect(host.page.getByTestId('analyst-report')).toContainText('WHY THE WINNER WON');
     const finalState = await debugRoom(host.page, roomCode);
     expect(finalState.squads).toHaveLength(24);
     for (const member of finalState.members.filter(({ isSpectator }) => !isSpectator)) {
@@ -52,6 +71,10 @@ test('two directors complete every slot and receive the 100-metric verdict, reca
     }
     expect(finalState.evaluation?.metrics).toHaveLength(100);
     expect(finalState.evaluation?.teams).toHaveLength(2);
+    expect(finalState.evaluation?.analystReport?.source).toMatch(/^(engine|groq)$/);
+    expect(finalState.evaluation?.analystReport?.winnerId).toBe(
+      finalState.evaluation?.teams.find((team) => team.rank === 1)?.memberId,
+    );
     for (const metric of finalState.evaluation!.metrics) {
       expect(Object.keys(metric.scores)).toHaveLength(2);
       expect(Object.values(metric.scores).every((score) => score >= 0 && score <= 100)).toBe(true);
@@ -132,6 +155,21 @@ test('two directors complete every slot and receive the 100-metric verdict, reca
     await expect(publicViewer.page.getByTestId('metric-count')).toHaveText('100');
 
     expect([...directors, publicViewer].flatMap(({ runtimeErrors }) => runtimeErrors)).toEqual([]);
+
+    await host.page.getByTestId('rematch-draft').click();
+    await Promise.all(
+      directors.map(({ page }) =>
+        expect(page.getByTestId('lobby-screen')).toBeVisible({ timeout: 15_000 }),
+      ),
+    );
+    await expect(host.page.getByTestId('lobby-room-code')).toHaveText(roomCode);
+    await expect(guest.page.getByTestId('lobby-room-code')).toHaveText(roomCode);
+    await expect(host.page.getByTestId('participant-count')).toContainText('2');
+    await host.page.getByTestId('settings-formation').selectOption('4-4-2');
+    await expect
+      .poll(async () => (await debugRoom(host.page, roomCode)).settings.formation)
+      .toBe('4-4-2');
+    await expect(guest.page.getByTestId('settings-formation')).toHaveValue('4-4-2');
   } finally {
     await closeDirectors(publicViewer ? [...directors, publicViewer] : directors);
   }

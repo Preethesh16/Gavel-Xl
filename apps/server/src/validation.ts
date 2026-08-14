@@ -27,6 +27,7 @@ export const socketSchemas = {
   'room:ready': readyPayloadSchema,
   'room:leave': roomActionSchema.strict(),
   'game:start': roomActionSchema.strict(),
+  'game:restart': roomActionSchema.strict(),
   'auction:bid': bidSchema.strict(),
   'auction:pass': passSchema.strict(),
   'team:request': teamRequestPayloadSchema,

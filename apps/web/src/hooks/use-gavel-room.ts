@@ -52,6 +52,7 @@ interface UseGavelRoomValue {
   setReady: (ready: boolean) => Promise<ActionResult>;
   updateSettings: (settings: Partial<RoomSettingsInput>) => Promise<ActionResult>;
   startGame: () => Promise<ActionResult>;
+  restartGame: () => Promise<ActionResult>;
   placeBid: (amountEUR: number) => Promise<ActionResult>;
   pass: () => Promise<ActionResult>;
   broadcastCheckpoint: () => Promise<ActionResult>;
@@ -504,6 +505,20 @@ export function useGavelRoom(): UseGavelRoomValue {
     );
   }, [acceptRoom, emitAck, run]);
 
+  const restartGame = useCallback(async () => {
+    const activeRoom = roomRef.current;
+    if (!activeRoom) return { ok: false, message: 'Join a room first.' };
+    return run(
+      'restart',
+      () => emitAck<RoomView>('game:restart', { roomCode: activeRoom.code }),
+      (nextRoom) => {
+        setMoment(null);
+        setBidLimit(null);
+        acceptRoom(nextRoom);
+      },
+    );
+  }, [acceptRoom, emitAck, run]);
+
   const placeBid = useCallback(
     async (amountEUR: number) => {
       const activeRoom = roomRef.current;
@@ -601,6 +616,7 @@ export function useGavelRoom(): UseGavelRoomValue {
     setReady,
     updateSettings,
     startGame,
+    restartGame,
     placeBid,
     pass,
     broadcastCheckpoint,
