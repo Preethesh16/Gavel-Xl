@@ -7,6 +7,7 @@ import {
   type CreateRoomInput,
   type JoinRoomInput,
 } from '@gavel-xi/shared';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { ArrowIcon, CheckIcon } from './icons';
 import { Brand } from './brand';
@@ -85,30 +86,49 @@ export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: Landing
       </header>
 
       <section className="hero">
-        <div className="hero__copy">
-          <p className="eyebrow">
-            <span>01</span> FOOTBALL&apos;S TRANSFER WAR ROOM
-          </p>
-          <h1>
-            BUILD THE XI.
-            <br />
-            <em>BREAK THE BANK.</em>
-          </h1>
-          <p className="hero__lede">
-            One card at a time. No peeking at what comes next. Outbid your friends, complete your
-            squad, face the final verdict.
-          </p>
-          <div className="hero__proof" aria-label="Game features">
-            <span>
-              <CheckIcon /> 2–8 DIRECTORS
-            </span>
-            <span>
-              <CheckIcon /> REAL-TIME AUCTIONS
-            </span>
-            <span>
-              <CheckIcon /> 100-METRIC VERDICT
-            </span>
+        <div className="hero__stage">
+          <div className="hero__copy">
+            <h1>
+              BUILD YOUR XI.
+              <br />
+              <em>OWN THE MARKET.</em>
+            </h1>
+            <p className="hero__lede">Draft. Bid. Build. Win.</p>
+            <div className="hero__proof" aria-label="Game features">
+              <span>
+                <CheckIcon /> 2–8 DIRECTORS
+              </span>
+              <span>
+                <CheckIcon /> REAL-TIME AUCTIONS
+              </span>
+            </div>
           </div>
+
+          <figure className="cover-athlete" aria-label="Cover athlete Lamine Yamal">
+            <Image
+              alt="Lamine Yamal celebrating with the world championship trophy"
+              className="cover-athlete__image"
+              height={1750}
+              priority
+              sizes="(max-width: 760px) 88vw, 52vw"
+              src="/athletes/lamine-yamal-cover.png"
+              width={1400}
+            />
+            <div className="cover-athlete__stats" aria-label="Lamine Yamal cover profile">
+              <span>
+                <small>ROLE</small>
+                <b>RIGHT WINGER</b>
+              </span>
+              <span>
+                <small>CLUB</small>
+                <b>BARCELONA</b>
+              </span>
+              <span>
+                <small>STATUS</small>
+                <b>WORLD CHAMPION</b>
+              </span>
+            </div>
+          </figure>
         </div>
 
         <div className="entry-shell">
@@ -124,11 +144,7 @@ export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: Landing
           </div>
           {mode === 'choice' ? (
             <div className="entry-choice">
-              <p className="entry-choice__intro">
-                No account. No draft board.
-                <br />
-                Just the room code and your nerve.
-              </p>
+              <p className="entry-choice__intro">Create or join.</p>
               <button
                 className="action-card action-card--primary"
                 data-testid="create-room-open"

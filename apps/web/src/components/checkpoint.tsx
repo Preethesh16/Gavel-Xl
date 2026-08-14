@@ -30,7 +30,7 @@ function ReportCard({
       style={
         {
           '--report-index': index,
-          '--member-color': member?.color ?? '#d6ff3f',
+          '--member-color': member?.color ?? '#f1bf00',
         } as React.CSSProperties
       }
     >

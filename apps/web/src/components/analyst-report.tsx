@@ -11,7 +11,7 @@ function memberName(room: RoomView, memberId: string): string {
 }
 
 function memberColor(room: RoomView, memberId: string): string {
-  return room.members.find(({ id }) => id === memberId)?.color ?? '#d6ff3f';
+  return room.members.find(({ id }) => id === memberId)?.color ?? '#f1bf00';
 }
 
 function CategoryScoreBars({

@@ -6,7 +6,7 @@ function PodiumPlace({ room, team }: { room: RoomView; team: TeamResultView }) {
   return (
     <article
       className={`podium-place podium-place--${team.rank}`}
-      style={{ '--member-color': member?.color ?? '#d6ff3f' } as React.CSSProperties}
+      style={{ '--member-color': member?.color ?? '#f1bf00' } as React.CSSProperties}
     >
       <span className="podium-place__rank">#{team.rank}</span>
       <div className="podium-place__avatar">{initials(member?.name ?? 'GX')}</div>
