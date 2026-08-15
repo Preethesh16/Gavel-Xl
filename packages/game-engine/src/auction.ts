@@ -683,7 +683,7 @@ export class GavelEngine {
     lot.currentLeaderId = memberId;
     state.processedIdempotencyKeys[actionKey] = state.auctionSequence;
     if (lot.endsAt !== null) {
-      lot.endsAt += 15_000;
+      lot.endsAt = now + 20_000;
       state.nextWakeAt = lot.endsAt;
     }
     appendReplay(state, now, 'BID', 'BID ACCEPTED', `${memberId} bids ${input.amountEUR}`, {

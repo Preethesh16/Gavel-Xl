@@ -13,7 +13,7 @@ const SCENES = [
   {
     kicker: '02 · WIN THE MARKET',
     title: 'BID. PASS. PROTECT THE BUDGET.',
-    body: 'Every accepted bid adds 15 seconds. Fill each role before your rivals and use Preview Team to watch your lineup take shape.',
+    body: 'Every accepted bid resets the clock to 20 seconds. Fill each role before your rivals and use Preview Team to watch your lineup take shape.',
     visual: 'auction',
   },
   {

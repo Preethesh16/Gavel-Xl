@@ -133,7 +133,7 @@ describe('authoritative auction engine', () => {
     );
   });
 
-  it('adds fifteen seconds to the deadline after every accepted bid', () => {
+  it('resets the deadline to twenty seconds after every accepted bid', () => {
     const engine = new GavelEngine();
     const state = open(
       engine,
@@ -149,16 +149,16 @@ describe('authoritative auction engine', () => {
     const originalDeadline = lot.endsAt!;
     const now = originalDeadline - 8_000;
     const result = engine.bid(state, lot.eligibleMemberIds[0]!, bidInput(lot), now);
-    expect(result.state.currentLot?.endsAt).toBe(originalDeadline + 15_000);
-    expect(result.nextWakeAt).toBe(originalDeadline + 15_000);
+    expect(result.state.currentLot?.endsAt).toBe(now + 20_000);
+    expect(result.nextWakeAt).toBe(now + 20_000);
     const second = engine.bid(
       result.state,
       lot.eligibleMemberIds[1]!,
       bidInput(lot, lot.openingBidEUR + state.settings.bidIncrementEUR),
       now + 1_000,
     );
-    expect(second.state.currentLot?.endsAt).toBe(originalDeadline + 30_000);
-    expect(second.nextWakeAt).toBe(originalDeadline + 30_000);
+    expect(second.state.currentLot?.endsAt).toBe(now + 1_000 + 20_000);
+    expect(second.nextWakeAt).toBe(now + 1_000 + 20_000);
   });
 
   it('rejects bid and pass actions at the exact authoritative deadline and after it', () => {

@@ -230,7 +230,7 @@ export function AuctionStage({
                   'WHO MOVES FIRST?'
                 )}
               </h2>
-              <small>Every bid adds 15 seconds. The server owns the gavel.</small>
+              <small>Every bid resets the clock to 20 seconds. The server owns the gavel.</small>
             </div>
           </header>
 
