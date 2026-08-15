@@ -141,14 +141,14 @@ export function TeamCheck({ room, me, onClose, onBroadcast }: TeamCheckProps) {
         <header className="team-check__header">
           <div>
             <p className="eyebrow">LIVE TACTICAL VIEW</p>
-            <h2 id="team-check-title">TEAM CHECK</h2>
+            <h2 id="team-check-title">PREVIEW TEAM</h2>
           </div>
           <button
             className="icon-button"
             data-testid="team-check-close"
             type="button"
             onClick={onClose}
-            aria-label="Close team check"
+            aria-label="Close team preview"
           >
             <CloseIcon />
           </button>

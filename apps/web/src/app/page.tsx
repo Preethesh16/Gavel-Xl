@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AuctionStage } from '@/components/auction-stage';
 import { Checkpoint } from '@/components/checkpoint';
 import { DebugPanel } from '@/components/debug-panel';
 import { Evaluating } from '@/components/evaluating';
+import { GameGuide } from '@/components/game-guide';
 import { Landing } from '@/components/landing';
 import { Lobby } from '@/components/lobby';
 import { ResultsHub } from '@/components/results-hub';
@@ -27,6 +28,7 @@ const AUCTION_PHASES = [
 
 export default function Home() {
   const game = useGavelRoom();
+  const [guideOpen, setGuideOpen] = useState(false);
   const sound = useSound(game.room?.settings.soundEnabled ?? true, game.moment);
   const lastRoom = useRef<string | null>(null);
   const suggestedCode = useMemo(() => {
@@ -109,7 +111,11 @@ export default function Home() {
         <Landing
           busyAction={game.busyAction}
           {...(suggestedCode ? { suggestedCode } : {})}
-          onCreate={game.createRoom}
+          onCreate={async (input) => {
+            const result = await game.createRoom(input);
+            if (result.ok) setGuideOpen(true);
+            return result;
+          }}
           onJoin={game.joinRoom}
         />
         <Toasts error={game.error} notice={game.notice} onClear={game.clearError} />
@@ -141,6 +147,7 @@ export default function Home() {
           onStart={game.startGame}
           onLeave={game.leaveRoom}
           onCopyInvite={copyInvite}
+          onShowGuide={() => setGuideOpen(true)}
         />
       ) : null}
       {AUCTION_PHASES.includes(room.phase) ? (
@@ -184,6 +191,9 @@ export default function Home() {
         serverUrl={game.serverUrl}
       />
       <Toasts error={game.error} notice={game.notice} onClear={game.clearError} />
+      {guideOpen && room.phase === 'LOBBY' ? (
+        <GameGuide onClose={() => setGuideOpen(false)} />
+      ) : null}
     </div>
   );
 }

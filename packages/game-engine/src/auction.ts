@@ -160,7 +160,8 @@ function candidateForNextReveal(state: EngineState): CandidateLocation | null {
   while (state.revealQueue.length > 0) {
     const candidateId = state.revealQueue.shift()!;
     const location = locateCandidate(state, candidateId);
-    if (location?.poolCandidate.status === 'QUEUED') return location;
+    if (location?.poolCandidate.status === 'QUEUED' && location.poolCandidate.tier === 'STRONG')
+      return location;
   }
   return (
     state.cycles
@@ -289,7 +290,11 @@ function forcedAssignment(state: EngineState, cycle: CycleState, now: number): E
   if (Object.keys(cycle.assignments).length !== state.members.length - 1) return [];
   const member = state.members.find((entry) => cycle.assignments[entry.id] === undefined);
   const candidate = cycle.candidates.find(
-    (entry) => entry.status !== 'SOLD' && entry.status !== 'FORCED' && entry.status !== 'ACTIVE',
+    (entry) =>
+      entry.tier === 'FALLBACK' &&
+      entry.status !== 'SOLD' &&
+      entry.status !== 'FORCED' &&
+      entry.status !== 'ACTIVE',
   );
   if (!member || !candidate) return [];
   const normalPrice = effectiveReserve(candidate);
@@ -677,8 +682,8 @@ export class GavelEngine {
     lot.currentBidEUR = input.amountEUR;
     lot.currentLeaderId = memberId;
     state.processedIdempotencyKeys[actionKey] = state.auctionSequence;
-    if (lot.endsAt !== null && lot.endsAt - now <= 3_000 && state.settings.antiSnipeSeconds > 0) {
-      lot.endsAt = now + state.settings.antiSnipeSeconds * 1_000;
+    if (lot.endsAt !== null) {
+      lot.endsAt += 15_000;
       state.nextWakeAt = lot.endsAt;
     }
     appendReplay(state, now, 'BID', 'BID ACCEPTED', `${memberId} bids ${input.amountEUR}`, {

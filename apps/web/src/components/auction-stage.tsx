@@ -189,7 +189,7 @@ export function AuctionStage({
           onClick={() => setTeamOpen(true)}
         >
           <TeamIcon />
-          <span>TEAM CHECK</span>
+          <span>PREVIEW TEAM</span>
           <b>
             {me.filledSlots}/{me.totalSlots}
           </b>
@@ -230,7 +230,7 @@ export function AuctionStage({
                   'WHO MOVES FIRST?'
                 )}
               </h2>
-              <small>Late bids extend the clock. The server owns the gavel.</small>
+              <small>Every bid adds 15 seconds. The server owns the gavel.</small>
             </div>
           </header>
 

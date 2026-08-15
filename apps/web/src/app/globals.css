@@ -816,7 +816,7 @@ summary:focus-visible {
 }
 .avatar-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
 }
 .avatar-option {
@@ -833,11 +833,345 @@ summary:focus-visible {
   color: var(--acid);
   background: var(--acid-soft);
 }
+.avatar-option__crest {
+  width: 74%;
+  height: 74%;
+  object-fit: contain;
+}
 .form-error {
   margin: -8px 0 14px;
   color: #ff9698;
   font-size: 11px;
   line-height: 1.45;
+}
+
+/* Post-create animated match briefing */
+.guide-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(14px);
+}
+.game-guide {
+  width: min(920px, 100%);
+  min-height: min(620px, calc(100svh - 48px));
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  background: radial-gradient(circle at 50% 35%, rgba(241, 191, 0, 0.12), transparent 34%), #080a08;
+  box-shadow: 0 32px 100px #000;
+}
+.game-guide > header,
+.game-guide > footer {
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font: 800 9px var(--display);
+  letter-spacing: 0.16em;
+}
+.game-guide > header button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font: inherit;
+}
+.game-guide > header svg {
+  width: 16px;
+}
+.game-guide__visual {
+  position: relative;
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+  animation: guideReveal 0.7s ease both;
+}
+.game-guide__photo {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(90deg, rgba(8, 10, 8, 0.18), rgba(8, 10, 8, 0.68)),
+    url('/guide-cover-stars.png');
+  background-repeat: no-repeat;
+  background-size:
+    100% 100%,
+    200% 100%;
+  animation: guidePhoto 6s ease-out both;
+}
+.game-guide__photo--yamal {
+  background-position: left center;
+}
+.game-guide__photo--spain {
+  background-image:
+    linear-gradient(90deg, rgba(8, 10, 8, 0.58), rgba(8, 10, 8, 0.12)),
+    url('/guide-cover-stars.png');
+  background-position: right center;
+}
+.game-guide__visual > svg {
+  width: 130px;
+  color: var(--acid);
+  filter: drop-shadow(0 0 28px rgba(241, 191, 0, 0.35));
+  animation: guideGavel 1.3s ease-in-out infinite alternate;
+}
+.guide-formation {
+  position: relative;
+  width: 250px;
+  height: 210px;
+  border: 1px solid rgba(241, 191, 0, 0.28);
+  background: linear-gradient(
+    90deg,
+    transparent 49.7%,
+    rgba(241, 191, 0, 0.2) 50%,
+    transparent 50.3%
+  );
+}
+.guide-formation i {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--acid);
+  box-shadow: 0 0 18px rgba(241, 191, 0, 0.5);
+  animation: guidePlayer 1.5s ease both;
+}
+.guide-formation i:nth-child(1) {
+  left: 46%;
+  top: 83%;
+}
+.guide-formation i:nth-child(2) {
+  left: 8%;
+  top: 65%;
+}
+.guide-formation i:nth-child(3) {
+  left: 34%;
+  top: 69%;
+}
+.guide-formation i:nth-child(4) {
+  left: 60%;
+  top: 69%;
+}
+.guide-formation i:nth-child(5) {
+  left: 86%;
+  top: 65%;
+}
+.guide-formation i:nth-child(6) {
+  left: 28%;
+  top: 45%;
+}
+.guide-formation i:nth-child(7) {
+  left: 67%;
+  top: 45%;
+}
+.guide-formation i:nth-child(8) {
+  left: 46%;
+  top: 29%;
+}
+.guide-formation i:nth-child(9) {
+  left: 10%;
+  top: 10%;
+}
+.guide-formation i:nth-child(10) {
+  left: 46%;
+  top: 4%;
+}
+.guide-formation i:nth-child(11) {
+  left: 83%;
+  top: 10%;
+}
+.guide-formation svg {
+  position: absolute;
+  right: -58px;
+  bottom: 0;
+  width: 32px;
+  color: var(--acid);
+}
+.guide-cards {
+  display: flex;
+  align-items: end;
+  gap: 18px;
+}
+.guide-cards i {
+  width: 100px;
+  height: 142px;
+  border: 1px solid var(--acid);
+  background: var(--acid-soft);
+}
+.guide-cards i:last-child {
+  height: 118px;
+  opacity: 0.45;
+  animation: guideForced 1.8s ease-in-out infinite alternate;
+}
+.game-guide__visual--yamal strong {
+  position: relative;
+  z-index: 1;
+  color: var(--acid);
+  font: 900 clamp(72px, 13vw, 140px)/1 var(--display);
+  letter-spacing: -0.08em;
+  text-shadow: 0 0 45px rgba(241, 191, 0, 0.28);
+}
+.game-guide__visual--yamal strong span {
+  color: #fff;
+}
+.guide-spain {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 25px;
+}
+.guide-spain span {
+  color: var(--acid);
+  font: 900 70px var(--display);
+}
+.game-guide__copy {
+  padding: 0 8% 34px;
+  animation: guideCopy 0.55s ease both;
+}
+.game-guide__copy p {
+  margin: 0 0 9px;
+  color: var(--acid);
+  font: 900 9px var(--display);
+  letter-spacing: 0.18em;
+}
+.game-guide__copy h2 {
+  max-width: 760px;
+  margin: 0 0 13px;
+  font: 900 clamp(26px, 5vw, 52px)/0.95 var(--display);
+  letter-spacing: -0.04em;
+}
+.game-guide__copy > span {
+  display: block;
+  max-width: 680px;
+  color: #aeb4ae;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.game-guide > footer {
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+.game-guide > footer .primary-button {
+  width: auto;
+  height: 43px;
+  padding: 0 18px;
+  font-size: 10px;
+}
+.game-guide__timeline {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+}
+.game-guide__timeline button {
+  width: min(70px, 14%);
+  height: 12px;
+  padding: 4px 0;
+}
+.game-guide__timeline i {
+  display: block;
+  height: 2px;
+  background: #333833;
+  overflow: hidden;
+}
+.game-guide__timeline .is-active i::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--acid);
+  transform-origin: left;
+  animation: guideProgress 6s linear;
+}
+.guide-replay-button {
+  align-self: center;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  color: var(--acid);
+  font: 900 9px var(--display);
+  letter-spacing: 0.12em;
+}
+@keyframes guideReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+@keyframes guideCopy {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+}
+@keyframes guideGavel {
+  to {
+    transform: rotate(-18deg) scale(1.05);
+  }
+}
+@keyframes guidePlayer {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+}
+@keyframes guideForced {
+  to {
+    transform: translateX(24px);
+    opacity: 1;
+  }
+}
+@keyframes guideProgress {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes guidePhoto {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .guide-backdrop {
+    padding: 0;
+  }
+  .game-guide {
+    min-height: 100svh;
+    border: 0;
+  }
+  .game-guide__visual {
+    min-height: 240px;
+    transform: scale(0.82);
+  }
+  .game-guide__copy {
+    padding: 0 24px 26px;
+  }
+  .game-guide > footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .game-guide > footer .primary-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-guide *,
+  .game-guide *::after {
+    animation-duration: 0.01ms !important;
+  }
 }
 .primary-button {
   width: 100%;
@@ -1224,6 +1558,12 @@ summary:focus-visible {
   color: var(--member-color);
   font-size: 18px;
   transform: rotate(3deg);
+}
+.participant__crest {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  transform: rotate(-3deg);
 }
 .participant__name b {
   display: block;

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { PublicLot } from '@gavel-xi/shared';
 import { describe, expect, it } from 'vitest';
 import { GavelEngine, assertEngineInvariants, maximumLegalBid } from './auction.js';
+import { formRating } from './ratings.js';
 import { verifySeedCommitment } from './rng.js';
 import { fixtureMembers, fixtureSettings, fixtureSnapshot } from './test-fixtures.js';
 import type { EngineState } from './types.js';
@@ -132,23 +133,32 @@ describe('authoritative auction engine', () => {
     );
   });
 
-  it('extends a valid final-three-second bid to the configured anti-snipe window', () => {
+  it('adds fifteen seconds to the deadline after every accepted bid', () => {
     const engine = new GavelEngine();
     const state = open(
       engine,
       engine.start({
         seed: 'anti-snipe',
         now: 10_000,
-        settings: fixtureSettings({ antiSnipeSeconds: 5 }),
+        settings: fixtureSettings(),
         members: fixtureMembers(3),
         snapshot: fixtureSnapshot(),
       }).state,
     );
     const lot = state.currentLot!;
-    const now = lot.endsAt! - 2_000;
+    const originalDeadline = lot.endsAt!;
+    const now = originalDeadline - 8_000;
     const result = engine.bid(state, lot.eligibleMemberIds[0]!, bidInput(lot), now);
-    expect(result.state.currentLot?.endsAt).toBe(now + 5_000);
-    expect(result.nextWakeAt).toBe(now + 5_000);
+    expect(result.state.currentLot?.endsAt).toBe(originalDeadline + 15_000);
+    expect(result.nextWakeAt).toBe(originalDeadline + 15_000);
+    const second = engine.bid(
+      result.state,
+      lot.eligibleMemberIds[1]!,
+      bidInput(lot, lot.openingBidEUR + state.settings.bidIncrementEUR),
+      now + 1_000,
+    );
+    expect(second.state.currentLot?.endsAt).toBe(originalDeadline + 30_000);
+    expect(second.nextWakeAt).toBe(originalDeadline + 30_000);
   });
 
   it('rejects bid and pass actions at the exact authoritative deadline and after it', () => {
@@ -318,7 +328,7 @@ describe('authoritative auction engine', () => {
     );
   });
 
-  it('handles three-player unsold, two sales, then forces the sole remaining candidate', () => {
+  it('holds back the weaker fallback until two players are sold in a three-director slot', () => {
     const engine = new GavelEngine();
     let state = open(
       engine,
@@ -337,9 +347,10 @@ describe('authoritative auction engine', () => {
     }
     const cycle = state.cycles.find((entry) => entry.id === cycleId)!;
     const otherIds = cycle.candidates
-      .filter(({ candidate }) => candidate.id !== firstLot.candidate.id)
+      .filter(({ candidate, tier }) => tier === 'STRONG' && candidate.id !== firstLot.candidate.id)
       .map(({ candidate }) => candidate.id);
-    state.revealQueue = [...otherIds, ...state.revealQueue.filter((id) => !otherIds.includes(id))];
+    // Isolate this positional cycle so its unsold strong candidate returns next.
+    state.revealQueue = otherIds;
     state = nextOpen(engine, state);
     const secondLot = state.currentLot!;
     const directorA = secondLot.eligibleMemberIds[0]!;
@@ -357,9 +368,18 @@ describe('authoritative auction engine', () => {
       state = engine.pass(state, memberId, passInput(thirdLot), 5).state;
     }
     expect(state.squads.filter((entry) => entry.cycleId === cycleId)).toHaveLength(3);
-    expect(state.squads.find((entry) => entry.acquisition !== 'AUCTION')?.candidate.id).toBe(
-      firstLot.candidate.id,
-    );
+    const forced = state.squads.find((entry) => entry.acquisition !== 'AUCTION')!;
+    const fallback = cycle.candidates.find(({ tier }) => tier === 'FALLBACK')!;
+    expect(forced.candidate.id).toBe(fallback.candidate.id);
+    expect(
+      state.squads
+        .filter((entry) => entry.cycleId === cycleId && entry.acquisition === 'AUCTION')
+        .every(
+          (entry) =>
+            formRating(entry.candidate, state.settings.formLookback) >
+            formRating(forced.candidate, state.settings.formLookback),
+        ),
+    ).toBe(true);
   });
 
   it.each([2, 3, 4])(

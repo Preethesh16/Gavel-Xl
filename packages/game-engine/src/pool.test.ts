@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { FORMATION_NAMES } from './formations.js';
-import { generateCandidatePool, poolCandidateCount } from './pool.js';
+import {
+  coverStarAppears,
+  generateCandidatePool,
+  isLamineYamal,
+  poolCandidateCount,
+} from './pool.js';
 import { scoreCurrentForm } from './ratings.js';
 import { fixtureMembers, fixtureSettings, fixtureSnapshot } from './test-fixtures.js';
 
@@ -15,6 +20,7 @@ describe('candidate pool generation', () => {
         snapshot: fixtureSnapshot(),
       });
       expect(pool.cycles).toHaveLength(12);
+      expect(pool.cycles.length * count).toBe(12 * count);
       for (const cycle of pool.cycles) {
         expect(cycle.candidates).toHaveLength(count);
         expect(
@@ -30,6 +36,14 @@ describe('candidate pool generation', () => {
         expect(cycle.candidates.filter((candidate) => candidate.tier === 'FALLBACK')).toHaveLength(
           1,
         );
+        const fallback = cycle.candidates.find(({ tier }) => tier === 'FALLBACK')!;
+        const strong = cycle.candidates.filter(({ tier }) => tier === 'STRONG');
+        expect(
+          strong.every(
+            ({ candidate }) => scoreCurrentForm(candidate) > scoreCurrentForm(fallback.candidate),
+          ),
+        ).toBe(true);
+        expect(pool.revealQueue).not.toContain(fallback.candidate.id);
       }
     },
   );
@@ -59,7 +73,8 @@ describe('candidate pool generation', () => {
       );
       expect(ids).toHaveLength(96);
       expect(new Set(ids).size).toBe(ids.length);
-      expect(new Set(pool.revealQueue).size).toBe(ids.length);
+      expect(pool.revealQueue).toHaveLength(12 * 7);
+      expect(new Set(pool.revealQueue).size).toBe(pool.revealQueue.length);
     },
   );
 
@@ -74,6 +89,39 @@ describe('candidate pool generation', () => {
     const other = generateCandidatePool({ ...input, seed: 'other' });
     expect(first).toEqual(again);
     expect(first.revealQueue).not.toEqual(other.revealQueue);
+  });
+
+  it('only admits Lamine Yamal on a deterministic one-in-thirty cover-star draw', () => {
+    const snapshot = fixtureSnapshot();
+    const yamal = snapshot.candidates.find(({ preferredPosition }) => preferredPosition === 'RW')!;
+    yamal.fullName = 'Lamine Yamal Nasraoui Ebana';
+    yamal.commonName = 'Lamine Yamal';
+    yamal.nationality = 'Spain';
+    const appearingSeed = Array.from({ length: 300 }, (_, index) => `cover-${index}`).find(
+      coverStarAppears,
+    )!;
+    const absentSeed = Array.from({ length: 300 }, (_, index) => `regular-${index}`).find(
+      (seed) => !coverStarAppears(seed),
+    )!;
+    const input = {
+      settings: fixtureSettings(),
+      members: fixtureMembers(3),
+      snapshot,
+    };
+    const featured = generateCandidatePool({ ...input, seed: appearingSeed });
+    const regular = generateCandidatePool({ ...input, seed: absentSeed });
+
+    expect(
+      featured.cycles
+        .flatMap(({ candidates }) => candidates)
+        .some(({ candidate }) => isLamineYamal(candidate)),
+    ).toBe(true);
+    expect(featured.revealQueue).toContain(yamal.id);
+    expect(
+      regular.cycles
+        .flatMap(({ candidates }) => candidates)
+        .some(({ candidate }) => isLamineYamal(candidate)),
+    ).toBe(false);
   });
 
   it('never fills a winger cycle with a striker even when the striker lists winger second', () => {

@@ -11,6 +11,19 @@ import type {
 import { METRIC_CATEGORIES, METRIC_NAMES } from './metrics.js';
 import { formRating, type FormLookback } from './ratings.js';
 
+export const COVER_STAR_BONUS = 4;
+export const COVER_TEAM_BONUS = COVER_STAR_BONUS / 2;
+
+function isLamineYamal(candidate: CandidateSnapshot): boolean {
+  const name = `${candidate.fullName} ${candidate.commonName}`.toLocaleLowerCase();
+  return candidate.kind === 'PLAYER' && name.includes('lamine') && name.includes('yamal');
+}
+
+function isSpanish(candidate: CandidateSnapshot): boolean {
+  const nationality = candidate.nationality.trim().toLocaleLowerCase();
+  return candidate.kind === 'PLAYER' && (nationality === 'spain' || nationality === 'spanish');
+}
+
 const ROLE_KEYS: Array<keyof RoleProfile> = [
   'pace',
   'physical',
@@ -1067,7 +1080,13 @@ export function evaluateGame(input: EvaluationInput): EvaluationView {
   }
   const provisional = teams.map((team) => {
     const categoryScores = categoryScoresByTeam.get(team.memberId)!;
-    const overallScore = rounded(average(Object.values(categoryScores)));
+    const ownsCoverStar = team.players.some(isLamineYamal);
+    const ownsOtherSpainPlayer = team.players.some(
+      (candidate) => isSpanish(candidate) && !isLamineYamal(candidate),
+    );
+    const coverBonus =
+      (ownsCoverStar ? COVER_STAR_BONUS : 0) + (ownsOtherSpainPlayer ? COVER_TEAM_BONUS : 0);
+    const overallScore = rounded(average(Object.values(categoryScores)) + coverBonus);
     const sortedCategories = Object.entries(categoryScores).sort(
       (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
     );
@@ -1075,6 +1094,8 @@ export function evaluateGame(input: EvaluationInput): EvaluationView {
       team,
       categoryScores,
       overallScore,
+      ownsCoverStar,
+      ownsOtherSpainPlayer,
       strengths: sortedCategories.slice(0, 2).map(([category]) => category),
       weakness: sortedCategories.at(-1)?.[0] ?? 'SQUAD DEPTH',
     };
@@ -1140,6 +1161,24 @@ export function evaluateGame(input: EvaluationInput): EvaluationView {
   });
 
   const awards: EvaluationView['awards'] = [];
+  for (const result of ranked) {
+    if (result.ownsCoverStar) {
+      addAward(
+        awards,
+        'Cover Star Boost',
+        result.team,
+        `Lamine Yamal · +${COVER_STAR_BONUS.toFixed(1)} overall`,
+      );
+    }
+    if (result.ownsOtherSpainPlayer) {
+      addAward(
+        awards,
+        'Cover Team Boost',
+        result.team,
+        `Spain player · +${COVER_TEAM_BONUS.toFixed(1)} overall`,
+      );
+    }
+  }
   addAward(
     awards,
     'Draft Champion',

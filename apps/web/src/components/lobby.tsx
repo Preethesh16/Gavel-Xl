@@ -1,6 +1,7 @@
 'use client';
 
 import type { RoomMemberView, RoomSettingsInput, RoomView } from '@gavel-xi/shared';
+import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { MILLION, formatMoney } from '@/lib/format';
 import { ArrowIcon, CopyIcon, CrownIcon, EyeIcon } from './icons';
@@ -23,6 +24,18 @@ const AVATAR_SYMBOLS: Record<string, string> = {
   target: '⊙',
   wave: '≋',
 };
+const CLUB_CRESTS = new Set([
+  'arsenal',
+  'barcelona',
+  'bayern-munich',
+  'chelsea',
+  'juventus',
+  'liverpool',
+  'manchester-city',
+  'manchester-united',
+  'psg',
+  'real-madrid',
+]);
 
 interface LobbyProps {
   room: RoomView;
@@ -33,6 +46,7 @@ interface LobbyProps {
   onStart: () => Promise<{ ok: boolean }>;
   onLeave: () => Promise<void>;
   onCopyInvite: () => void;
+  onShowGuide: () => void;
 }
 
 function Participant({ member, index }: { member: RoomMemberView; index: number }) {
@@ -46,7 +60,17 @@ function Participant({ member, index }: { member: RoomMemberView; index: number 
         className="participant__avatar"
         style={{ '--member-color': member.color } as React.CSSProperties}
       >
-        {AVATAR_SYMBOLS[member.avatar] ?? '◇'}
+        {CLUB_CRESTS.has(member.avatar) ? (
+          <Image
+            alt=""
+            className="participant__crest"
+            height={34}
+            src={`/crests/${member.avatar}.png`}
+            width={34}
+          />
+        ) : (
+          (AVATAR_SYMBOLS[member.avatar] ?? '◇')
+        )}
       </span>
       <span className="participant__name">
         <b>{member.name}</b>
@@ -80,6 +104,7 @@ export function Lobby({
   onStart,
   onLeave,
   onCopyInvite,
+  onShowGuide,
 }: LobbyProps) {
   const [customBudget, setCustomBudget] = useState(Math.round(room.settings.budgetEUR / MILLION));
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -128,6 +153,9 @@ export function Lobby({
           <small>
             <CopyIcon /> COPY CODE + INVITE LINK
           </small>
+        </button>
+        <button className="guide-replay-button" type="button" onClick={onShowGuide}>
+          ▶ HOW TO PLAY
         </button>
       </section>
 

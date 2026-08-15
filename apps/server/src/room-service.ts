@@ -87,7 +87,7 @@ function createMember(
   return {
     id: randomUUID(),
     name: input.name,
-    avatar: input.avatar ?? 'shield',
+    avatar: input.avatar ?? 'barcelona',
     color,
     isHost,
     isReady: false,

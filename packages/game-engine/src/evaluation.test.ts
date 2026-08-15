@@ -1,6 +1,6 @@
 import type { EvaluationView, Position, SquadEntryView } from '@gavel-xi/shared';
 import { describe, expect, it } from 'vitest';
-import { evaluateGame } from './evaluation.js';
+import { COVER_STAR_BONUS, COVER_TEAM_BONUS, evaluateGame } from './evaluation.js';
 import { METRIC_CATEGORIES, METRIC_NAMES } from './metrics.js';
 import { fixtureSnapshot } from './test-fixtures.js';
 
@@ -101,6 +101,33 @@ describe('100-metric evaluation', () => {
     expect(evaluation.headToHead).toHaveLength(1);
     expect(evaluation.headToHead[0]?.homeGoals).toBeGreaterThanOrEqual(0);
     expect(evaluation.teams[0]?.leaguePoints).toBeGreaterThanOrEqual(20);
+  });
+
+  it('applies transparent cover-star and cover-team bonuses to the final score', () => {
+    const baselineEntries = semanticSquads();
+    const baseline = evaluate(baselineEntries);
+    const boostedEntries = structuredClone(baselineEntries);
+    const yamal = boostedEntries.find(
+      ({ memberId, slotId }) => memberId === 'alpha' && slotId === 'rw-1',
+    )!;
+    yamal.candidate.fullName = 'Lamine Yamal Nasraoui Ebana';
+    yamal.candidate.commonName = 'Lamine Yamal';
+    yamal.candidate.nationality = 'Spain';
+    const spanishTeammate = boostedEntries.find(
+      ({ memberId, slotId }) => memberId === 'alpha' && slotId === 'dm-1',
+    )!;
+    spanishTeammate.candidate.nationality = 'Spain';
+    const boosted = evaluate(boostedEntries);
+    const baselineScore = baseline.teams.find(({ memberId }) => memberId === 'alpha')!.overallScore;
+    const boostedScore = boosted.teams.find(({ memberId }) => memberId === 'alpha')!.overallScore;
+
+    expect(boostedScore).toBeCloseTo(baselineScore + COVER_STAR_BONUS + COVER_TEAM_BONUS, 1);
+    expect(boosted.awards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'Cover Star Boost', memberId: 'alpha' }),
+        expect.objectContaining({ title: 'Cover Team Boost', memberId: 'alpha' }),
+      ]),
+    );
   });
 
   it('uses goalkeeper signals for shot stopping without leaking them into finishing', () => {

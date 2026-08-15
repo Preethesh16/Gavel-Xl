@@ -18,6 +18,19 @@ export interface GeneratePoolInput {
   snapshot: EngineSnapshot;
 }
 
+const COVER_STAR_ODDS = 30;
+
+export function isLamineYamal(candidate: CandidateSnapshot): boolean {
+  const name = `${candidate.fullName} ${candidate.commonName}`.toLocaleLowerCase();
+  return candidate.kind === 'PLAYER' && name.includes('lamine') && name.includes('yamal');
+}
+
+export function coverStarAppears(seed: string): boolean {
+  return (
+    nextRandom(createSeededRandom(`${seed}:cover-star:lamine-yamal`)).value < 1 / COVER_STAR_ODDS
+  );
+}
+
 function roundReserve(valueEUR: number, incrementEUR: number, maximumEUR: number): number {
   const safe = Math.max(incrementEUR, Math.min(maximumEUR, valueEUR));
   return Math.max(incrementEUR, Math.round(safe / incrementEUR) * incrementEUR);
@@ -144,8 +157,11 @@ function candidatesForCycle(
   settings: RoomSettingsInput,
   random: SeededRandom,
   strictCycleCapEUR: number,
+  featuredCandidate?: CandidateSnapshot,
 ): { candidates: PoolCandidate[]; random: SeededRandom } {
-  const available = availableForSlot(slot, source, usedIds);
+  const available = availableForSlot(slot, source, usedIds).filter(
+    (candidate) => !isLamineYamal(candidate) || candidate.id === featuredCandidate?.id,
+  );
   const percentiles = positionPercentiles(available, settings.formLookback);
   const preferredStrong = available
     .filter((candidate) => (percentiles.get(candidate.id) ?? 0) >= 80)
@@ -196,10 +212,20 @@ function candidatesForCycle(
       ? strongWithoutFallback
       : [...strongWithoutFallback, ...fillers.slice(0, count - 1 - strongWithoutFallback.length)];
   const strongPick = diversify(strongPool, count - 1, fallbackPick.random, true);
-  const tiered: Array<{ candidate: CandidateSnapshot; tier: CandidateTier }> = [
+  let tiered: Array<{ candidate: CandidateSnapshot; tier: CandidateTier }> = [
     ...strongPick.selected.map((candidate) => ({ candidate, tier: 'STRONG' as const })),
     ...fallbackPick.selected.map((candidate) => ({ candidate, tier: 'FALLBACK' as const })),
   ];
+  if (featuredCandidate && available.some(({ id }) => id === featuredCandidate.id)) {
+    const withoutFeatured = tiered.filter(({ candidate }) => candidate.id !== featuredCandidate.id);
+    const fallback = withoutFeatured.find(({ tier }) => tier === 'FALLBACK');
+    const strong = withoutFeatured.filter(({ tier }) => tier === 'STRONG').slice(0, count - 2);
+    tiered = [
+      ...strong,
+      { candidate: featuredCandidate, tier: 'STRONG' },
+      ...(fallback ? [fallback] : []),
+    ];
+  }
   const mixed = shuffle(tiered, strongPick.random);
   let cursor = mixed.random;
   const result: PoolCandidate[] = [];
@@ -226,6 +252,10 @@ export function generateCandidatePool(input: GeneratePoolInput): GeneratedPool {
     input.settings.bidIncrementEUR;
   const usedIds = new Set<string>();
   let random = createSeededRandom(`${input.seed}:candidate-pool`);
+  const coverStar = coverStarAppears(input.seed)
+    ? input.snapshot.candidates.find(isLamineYamal)
+    : undefined;
+  let coverStarAdded = false;
   const cycles: CycleState[] = [];
   for (const formationSlot of formation.slots) {
     const generated = candidatesForCycle(
@@ -236,7 +266,13 @@ export function generateCandidatePool(input: GeneratePoolInput): GeneratedPool {
       input.settings,
       random,
       strictCycleCapEUR,
+      !coverStarAdded && coverStar?.preferredPosition === formationSlot.position
+        ? coverStar
+        : undefined,
     );
+    if (generated.candidates.some(({ candidate }) => candidate.id === coverStar?.id)) {
+      coverStarAdded = true;
+    }
     random = generated.random;
     cycles.push({
       id: `${formationSlot.id}-cycle`,
@@ -248,10 +284,14 @@ export function generateCandidatePool(input: GeneratePoolInput): GeneratedPool {
       resolved: false,
     });
   }
-  const candidateIds = cycles.flatMap((cycle) =>
-    cycle.candidates.map(({ candidate }) => candidate.id),
+  // The one lower-rated fallback in each slot is deliberately withheld from
+  // the public auction. It becomes the forced deal only after the other N-1
+  // candidates have been sold, guaranteeing exactly one completed slot per
+  // director without exposing the fallback early.
+  const auctionCandidateIds = cycles.flatMap((cycle) =>
+    cycle.candidates.filter(({ tier }) => tier === 'STRONG').map(({ candidate }) => candidate.id),
   );
-  const reveal = shuffle(candidateIds, random);
+  const reveal = shuffle(auctionCandidateIds, random);
   return { formation, cycles, revealQueue: reveal.values };
 }
 

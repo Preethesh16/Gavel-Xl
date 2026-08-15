@@ -13,12 +13,16 @@ import { ArrowIcon, CheckIcon } from './icons';
 import { Brand } from './brand';
 
 const AVATARS = [
-  { id: 'shield', symbol: '◇', label: 'Shield' },
-  { id: 'bolt', symbol: 'ϟ', label: 'Bolt' },
-  { id: 'crown', symbol: '♜', label: 'Crown' },
-  { id: 'star', symbol: '✦', label: 'Star' },
-  { id: 'target', symbol: '⊙', label: 'Target' },
-  { id: 'wave', symbol: '≋', label: 'Wave' },
+  { id: 'barcelona', label: 'FC Barcelona' },
+  { id: 'real-madrid', label: 'Real Madrid' },
+  { id: 'manchester-united', label: 'Manchester United' },
+  { id: 'liverpool', label: 'Liverpool' },
+  { id: 'manchester-city', label: 'Manchester City' },
+  { id: 'arsenal', label: 'Arsenal' },
+  { id: 'chelsea', label: 'Chelsea' },
+  { id: 'bayern-munich', label: 'Bayern Munich' },
+  { id: 'psg', label: 'Paris Saint-Germain' },
+  { id: 'juventus', label: 'Juventus' },
 ] as const;
 
 type LandingMode = 'choice' | 'create' | 'join';
@@ -34,7 +38,7 @@ export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: Landing
   const [mode, setMode] = useState<LandingMode>(suggestedCode ? 'join' : 'choice');
   const [name, setName] = useState('');
   const [roomCode, setRoomCode] = useState(suggestedCode ?? '');
-  const [avatar, setAvatar] = useState<(typeof AVATARS)[number]['id']>('shield');
+  const [avatar, setAvatar] = useState<(typeof AVATARS)[number]['id']>('barcelona');
   const [validation, setValidation] = useState<string | null>(null);
 
   useEffect(() => {
@@ -232,7 +236,13 @@ export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: Landing
                       onClick={() => setAvatar(option.id)}
                       type="button"
                     >
-                      {option.symbol}
+                      <Image
+                        alt=""
+                        className="avatar-option__crest"
+                        height={48}
+                        src={`/crests/${option.id}.png`}
+                        width={48}
+                      />
                     </button>
                   ))}
                 </div>

@@ -23,8 +23,26 @@ export const displayNameSchema = z
   .refine((value) => value.length >= 2, 'Name contains unsupported characters');
 
 export const avatarSchema = z
-  .enum(['bolt', 'crown', 'shield', 'star', 'target', 'wave'])
-  .default('shield');
+  .enum([
+    'arsenal',
+    'barcelona',
+    'bayern-munich',
+    'chelsea',
+    'juventus',
+    'liverpool',
+    'manchester-city',
+    'manchester-united',
+    'psg',
+    'real-madrid',
+    // Retained so sessions created by older clients can still be resumed.
+    'bolt',
+    'crown',
+    'shield',
+    'star',
+    'target',
+    'wave',
+  ])
+  .default('barcelona');
 
 export const formationNameSchema = z.enum([
   '4-2-1-3',
