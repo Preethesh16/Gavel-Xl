@@ -74,15 +74,24 @@ function playPattern(context: AudioContext, cue: Cue): void {
   }
 }
 
-function announce(moment: AuctionMoment): void {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+function announcementFor(moment: AuctionMoment): { key: string; message: string } | null {
   const name = moment.lot?.candidate.commonName || moment.lot?.candidate.fullName;
-  let message: string | null = null;
-  if (moment.kind === 'reveal' && name) {
+  if ((moment.kind === 'reveal' || moment.kind === 'opened') && name && moment.lot) {
     const role = moment.lot?.candidate.kind === 'MANAGER' ? 'manager' : 'player';
-    message = `Next ${role} is ${name}.`;
+    return { key: moment.lot.id, message: `Next ${role} is ${name}.` };
   }
-  if (message === null) return;
+  return null;
+}
+
+function speechAllowed(): boolean {
+  if (process.env.NEXT_PUBLIC_E2E !== 'true') return true;
+  return Boolean(
+    typeof window !== 'undefined' &&
+    (window as typeof window & { __GAVEL_SOUND_TEST__?: boolean }).__GAVEL_SOUND_TEST__,
+  );
+}
+
+function utteranceFor(message: string): SpeechSynthesisUtterance {
   const utterance = new SpeechSynthesisUtterance(message);
   const voices = window.speechSynthesis.getVoices();
   utterance.voice =
@@ -92,8 +101,7 @@ function announce(moment: AuctionMoment): void {
   utterance.rate = 0.94;
   utterance.pitch = 0.92;
   utterance.volume = 0.9;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
+  return utterance;
 }
 
 export function useSound(
@@ -106,6 +114,8 @@ export function useSound(
   const backgroundRef = useRef<HTMLAudioElement | null>(null);
   const soldRef = useRef<HTMLAudioElement | null>(null);
   const playedMoment = useRef<number | null>(null);
+  const announcedLot = useRef<string | null>(null);
+  const announcementTimer = useRef<number | null>(null);
 
   useEffect(() => setEnabled(storedSound(roomDefault)), [roomDefault]);
 
@@ -144,6 +154,33 @@ export function useSound(
       window.removeEventListener('keydown', start);
     };
   }, [backgroundActive, enabled]);
+
+  useEffect(() => {
+    if (!enabled || !speechAllowed() || !('speechSynthesis' in window)) return;
+    const unlockSpeech = () => {
+      try {
+        window.speechSynthesis.resume();
+        const silent = new SpeechSynthesisUtterance(' ');
+        silent.volume = 0;
+        window.speechSynthesis.speak(silent);
+      } catch {
+        // Some browsers do not require (or permit) a speech warm-up.
+      }
+    };
+    window.addEventListener('pointerdown', unlockSpeech, { once: true });
+    window.addEventListener('keydown', unlockSpeech, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockSpeech);
+      window.removeEventListener('keydown', unlockSpeech);
+    };
+  }, [enabled]);
+
+  useEffect(
+    () => () => {
+      if (announcementTimer.current !== null) window.clearTimeout(announcementTimer.current);
+    },
+    [],
+  );
 
   const play = useCallback(
     (cue: Cue) => {
@@ -186,7 +223,27 @@ export function useSound(
         void sold.play().catch(() => undefined);
       }
     }
-    if (enabled && process.env.NEXT_PUBLIC_E2E !== 'true') announce(moment);
+    const announcement = announcementFor(moment);
+    if (
+      enabled &&
+      speechAllowed() &&
+      announcement &&
+      announcedLot.current !== announcement.key &&
+      'speechSynthesis' in window
+    ) {
+      announcedLot.current = announcement.key;
+      if (announcementTimer.current !== null) window.clearTimeout(announcementTimer.current);
+      const utterance = utteranceFor(announcement.message);
+      // Chrome can drop an utterance when cancel() and speak() happen in the
+      // same task. Let the queue settle, and accept either reveal or opened so
+      // a zero-second reveal cannot race the announcement away.
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+      announcementTimer.current = window.setTimeout(() => {
+        window.speechSynthesis.speak(utterance);
+        announcementTimer.current = null;
+      }, 60);
+    }
   }, [enabled, moment, play]);
 
   const toggle = useCallback(() => {
@@ -197,6 +254,10 @@ export function useSound(
         if (!next) {
           backgroundRef.current?.pause();
           soldRef.current?.pause();
+          if (announcementTimer.current !== null) {
+            window.clearTimeout(announcementTimer.current);
+            announcementTimer.current = null;
+          }
           if ('speechSynthesis' in window) window.speechSynthesis.cancel();
         } else if (backgroundActive) {
           void backgroundRef.current?.play().catch(() => undefined);
