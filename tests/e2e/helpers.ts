@@ -95,13 +95,24 @@ export async function openLanding(page: Page): Promise<void> {
   await expect.poll(async () => (await page.request.get(`${SERVER_URL}/health`)).ok()).toBe(true);
 }
 
-export async function createRoom(page: Page, name: string): Promise<string> {
+export async function createRoom(
+  page: Page,
+  name: string,
+  options: { dismissGuide?: boolean } = {},
+): Promise<string> {
   await openLanding(page);
   await page.getByTestId('create-room-open').click();
   await page.getByTestId('create-name-input').fill(name);
   await page.getByTestId('create-room-submit').click();
   await expect(page.getByTestId('lobby-screen')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('my-name')).toHaveText(name);
+  if (options.dismissGuide !== false) {
+    const guide = page.getByRole('dialog', { name: 'How to play Gavel XI' });
+    if (await guide.isVisible()) {
+      await guide.getByRole('button', { name: 'Skip game explanation' }).click();
+      await expect(guide).not.toBeVisible();
+    }
+  }
   const roomCode = (await page.getByTestId('lobby-room-code').innerText()).trim();
   expect(roomCode).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
   return roomCode;

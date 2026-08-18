@@ -233,10 +233,14 @@ export function useGavelRoom(): UseGavelRoomValue {
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 500,
-      reconnectionDelayMax: 4_000,
+      // Eight browsers can lose the same hosted instance at once. A wider,
+      // jittered backoff prevents that group from becoming a reconnect storm.
+      reconnectionDelay: 1_000,
+      reconnectionDelayMax: 20_000,
+      randomizationFactor: 0.75,
       timeout: 10_000,
       transports: ['websocket', 'polling'],
+      tryAllTransports: true,
     });
     socketRef.current = socket;
     sessionRef.current = loadSession();

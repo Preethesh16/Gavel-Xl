@@ -320,6 +320,8 @@ abstract class HttpFootballProvider implements FootballDataProvider {
       positions,
       preferredPosition: position,
       imageUrl: string(raw['image_path'] ?? raw['photo']) || null,
+      clubImageUrl: string(club?.['logo'] ?? club?.['image_path']) || null,
+      nationalityCode: string(nationality?.['code'] ?? raw['nationality_code']) || null,
       season: string(raw['season'], 'current'),
       appearances: number(raw['appearances'] ?? games?.['appearences']),
       starts: number(raw['starts'] ?? raw['lineups'] ?? games?.['lineups']),
@@ -358,6 +360,9 @@ abstract class HttpFootballProvider implements FootballDataProvider {
       positions: ['MANAGER'],
       preferredPosition: 'MANAGER',
       imageUrl: string(raw['image_path'] ?? raw['photo']) || null,
+      clubImageUrl: string(club?.['logo'] ?? club?.['image_path']) || null,
+      nationalityCode:
+        string(record(raw['nationality'])?.['code'] ?? raw['nationality_code']) || null,
       season: string(raw['season'], 'current'),
       appearances: number(raw['appearances']),
       starts: number(raw['starts']),

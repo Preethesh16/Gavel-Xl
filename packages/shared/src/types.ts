@@ -83,6 +83,9 @@ export interface CandidateSnapshot {
   positions: Position[];
   preferredPosition: Position;
   imageUrl: string | null;
+  /** Optional frozen presentation assets supplied by the data provider. */
+  clubImageUrl?: string | null;
+  nationalityCode?: string | null;
   season: string;
   appearances: number;
   starts: number;

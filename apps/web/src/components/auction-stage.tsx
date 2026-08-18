@@ -35,7 +35,7 @@ function useCountdown(endsAt: number | null | undefined, clockOffset: number): n
     if (!endsAt) return;
     const interval = window.setInterval(
       () => setRemaining(calculate()),
-      process.env.NEXT_PUBLIC_E2E === 'true' ? 50 : 100,
+      process.env.NEXT_PUBLIC_E2E === 'true' ? 50 : 250,
     );
     return () => window.clearInterval(interval);
   }, [calculate, endsAt]);

@@ -57,7 +57,7 @@ export class DevelopmentSnapshotProvider implements FootballDataProvider {
     this.#players = PLAYER_POSITIONS.flatMap((position, positionIndex) =>
       Array.from({ length: countPerPosition }, (_, index) => {
         const strongBand = index < Math.ceil(countPerPosition * 0.65);
-        const rating = strongBand ? 99 - (index % 20) : 74 - (index % 18);
+        const rating = strongBand ? 94 - (index % 16) : 74 - (index % 18);
         const id = `dev-player-${position.toLowerCase()}-${String(index + 1).padStart(2, '0')}`;
         const baseValue = strongBand
           ? 110_000_000 - index * 3_000_000

@@ -102,6 +102,77 @@ export class CatalogProvider implements FootballDataProvider {
         'catalog is empty; run pnpm --filter @gavel-xi/server catalog:import <file>',
       );
     }
-    return catalog;
+    const clubStrength = new Map<string, number>();
+    for (const player of catalog.players) {
+      clubStrength.set(
+        player.club,
+        (clubStrength.get(player.club) ?? 0) + (player.valuation.valueEUR ?? 0),
+      );
+    }
+    return {
+      players: catalog.players.map((candidate) => normalizeCatalogCandidate(candidate)),
+      managers: catalog.managers.map((candidate) =>
+        normalizeCatalogCandidate(candidate, clubStrength.get(candidate.club)),
+      ),
+    };
   }
+}
+
+/** Correct catalogues imported before the bounded market-rating model shipped. */
+function normalizeCatalogCandidate(
+  candidate: CandidateSnapshot,
+  managerClubStrength?: number,
+): CandidateSnapshot {
+  if (!candidate.dataSource.startsWith('Transfermarkt-derived open catalogue')) return candidate;
+  const value =
+    candidate.kind === 'MANAGER'
+      ? Math.max(10_000_000, managerClubStrength ?? 10_000_000)
+      : (candidate.valuation.valueEUR ?? 1_000_000);
+  const rating = Math.max(
+    45,
+    Math.min(
+      94,
+      Math.round(
+        candidate.kind === 'MANAGER'
+          ? 62 + Math.log10(value / 10_000_000) * 12
+          : 61 + Math.log10(value / 1_000_000) * 15,
+      ),
+    ),
+  );
+  const delta = rating - candidate.currentFormRating;
+  const shifted = (score: number): number => Math.max(1, Math.min(99, Math.round(score + delta)));
+  const role = candidate.role;
+  const tactics = candidate.tactics;
+  return {
+    ...candidate,
+    currentFormRating: rating,
+    lastFive: candidate.lastFive.map(shifted),
+    role: {
+      pace: shifted(role.pace),
+      physical: shifted(role.physical),
+      technique: shifted(role.technique),
+      creativity: shifted(role.creativity),
+      defending: shifted(role.defending),
+      aerial: shifted(role.aerial),
+      passing: shifted(role.passing),
+      finishing: shifted(role.finishing),
+      pressing: shifted(role.pressing),
+      composure: shifted(role.composure),
+    },
+    ...(tactics === undefined
+      ? {}
+      : {
+          tactics: {
+            possession: shifted(tactics.possession),
+            pressing: shifted(tactics.pressing),
+            transition: shifted(tactics.transition),
+            lowBlock: shifted(tactics.lowBlock),
+            highLine: shifted(tactics.highLine),
+            directness: shifted(tactics.directness),
+            widthPreference: shifted(tactics.widthPreference),
+            buildUpRisk: shifted(tactics.buildUpRisk),
+            tacticalFlexibility: shifted(tactics.tacticalFlexibility),
+          },
+        }),
+  };
 }

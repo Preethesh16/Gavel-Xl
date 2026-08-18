@@ -328,6 +328,33 @@ describe('authoritative auction engine', () => {
     );
   });
 
+  it('finishes a required slot for free when a recovered strict director has zero budget', () => {
+    const engine = new GavelEngine();
+    let state = open(
+      engine,
+      engine.start({
+        seed: 'zero-budget-recovery',
+        now: 0,
+        settings: fixtureSettings({ budgetMode: 'STRICT' }),
+        members: fixtureMembers(2),
+        snapshot: fixtureSnapshot(),
+      }).state,
+    );
+    const lot = state.currentLot!;
+    const forcedMemberId = lot.eligibleMemberIds[1]!;
+    const sale = engine.bid(state, lot.eligibleMemberIds[0]!, bidInput(lot), 1);
+    expect(sale.accepted).toBe(true);
+    state = sale.state;
+    state.members.find((member) => member.id === forcedMemberId)!.remainingBudgetEUR = 0;
+    const passed = engine.pass(state, forcedMemberId, passInput(lot), 2);
+    expect(passed.accepted).toBe(true);
+    state = passed.state;
+    const fallback = state.squads.find((entry) => entry.memberId === forcedMemberId)!;
+    expect(fallback.acquisition).toBe('EMERGENCY');
+    expect(fallback.purchasePriceEUR).toBe(0);
+    expect(fallback.candidate.id).toBeTruthy();
+  });
+
   it('holds back the weaker fallback until two players are sold in a three-director slot', () => {
     const engine = new GavelEngine();
     let state = open(

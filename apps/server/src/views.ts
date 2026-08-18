@@ -38,6 +38,10 @@ export function memberView(room: StoredRoom, member: StoredMember): RoomMemberVi
 /** The only ordinary-client serialization path. hiddenState and unrevealed seed never cross it. */
 export function roomView(room: StoredRoom, serverNow = Date.now()): RoomView {
   const seedVisible = ['RESULTS', 'COMPLETE'].includes(room.phase);
+  // Replay history grows for the whole match. Sending it again on every bid,
+  // pass, timer transition, and squad update turns a busy eight-player room
+  // into quadratic network traffic. Clients only render replay on results.
+  const replayVisible = ['RESULTS', 'COMPLETE'].includes(room.phase);
   return {
     code: room.code,
     title: room.title,
@@ -58,7 +62,7 @@ export function roomView(room: StoredRoom, serverNow = Date.now()): RoomView {
     totalCycles: room.totalCycles,
     checkpoint: structuredClone(room.checkpoint),
     evaluation: structuredClone(room.evaluation),
-    replay: structuredClone(room.replay),
+    replay: replayVisible ? structuredClone(room.replay) : [],
     serverNow,
   };
 }

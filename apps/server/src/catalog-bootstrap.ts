@@ -17,6 +17,7 @@ const DATA = 'https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data';
 // startup OOM from loading thousands of rich JSON documents at once.
 const MAX_PLAYERS_PER_POSITION = 120;
 const MAX_MANAGERS = 120;
+const MAX_MANAGER_PORTRAITS = 40;
 // England, Spain, Italy, Germany, France, Portugal, Netherlands, Belgium, Turkey.
 const NINE_LEAGUES = new Set(['GB1', 'ES1', 'IT1', 'L1', 'FR1', 'PO1', 'NL1', 'BE1', 'TR1']);
 const positionMap: Record<string, Position> = {
@@ -124,6 +125,47 @@ function age(value: string): number {
 function clamp(value: number): number {
   return Math.max(1, Math.min(99, Math.round(value)));
 }
+
+/**
+ * The catalogue has market data, not live match ratings. Keep that estimate
+ * useful without turning every expensive player into a 99-rated card.
+ */
+function marketDerivedRating(valueEUR: number): number {
+  return clamp(61 + Math.log10(Math.max(1, valueEUR) / 1_000_000) * 15);
+}
+
+function stableRecentForm(id: string, baseline: number): number[] {
+  let hash = 2166136261;
+  for (const character of id) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Array.from({ length: 5 }, (_, index) => {
+    const shift = ((hash >>> (index * 5)) & 31) - 15;
+    return clamp(baseline + shift * 0.45);
+  });
+}
+
+function clubCrestUrl(clubId: string): string {
+  return `https://tmssl.akamaized.net/images/wappen/head/${clubId}.png`;
+}
+
+async function managerPortrait(name: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`,
+      {
+        headers: { 'user-agent': 'Gavel-XI-catalog/1.0 (manager portrait metadata)' },
+        signal: AbortSignal.timeout(4_000),
+      },
+    );
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { thumbnail?: { source?: unknown } };
+    return typeof payload.thumbnail?.source === 'string' ? payload.thumbnail.source : null;
+  } catch {
+    return null;
+  }
+}
 function role(position: Position, value: number): RoleProfile {
   const base: RoleProfile = {
     pace: value,
@@ -213,7 +255,7 @@ export async function createTransfermarktCatalog(): Promise<{
     )
       return;
     const id = `transfermarkt:${entry['player_id']}`;
-    const baseline = clamp(45 + Math.log10(value) * 7);
+    const baseline = marketDerivedRating(value);
     const candidate: CandidateSnapshot = {
       id,
       kind: 'PLAYER' as const,
@@ -226,6 +268,7 @@ export async function createTransfermarktCatalog(): Promise<{
       positions: [position],
       preferredPosition: position,
       imageUrl: entry['image_url'] || null,
+      clubImageUrl: clubCrestUrl(entry['current_club_id']!),
       season: String(entry['last_season']),
       appearances: 0,
       starts: 0,
@@ -236,7 +279,7 @@ export async function createTransfermarktCatalog(): Promise<{
       currentFormRating: baseline,
       availabilityRating: 75,
       competitionStrength: 82,
-      lastFive: Array.from({ length: 5 }, () => baseline),
+      lastFive: stableRecentForm(id, baseline),
       role: role(position, baseline),
       valuation: valuation(value, updatedAt),
       dataSource:
@@ -254,44 +297,62 @@ export async function createTransfermarktCatalog(): Promise<{
     playersByPosition.set(position, entries);
   });
   const players = [...playersByPosition.values()].flat();
-  const managers: CandidateSnapshot[] = [...clubs.values()]
-    .flatMap((club) => {
-      const name = club['coach_name']?.trim();
-      if (name === undefined || name === '') return [];
-      return [
-        {
-          id: `transfermarkt:coach:${club['club_id']}`,
-          kind: 'MANAGER' as const,
-          fullName: name,
-          commonName: name,
-          age: 45,
-          nationality: 'Unknown',
-          club: club['name']!,
-          league: club['domestic_competition_id']!,
-          positions: ['MANAGER'] as Position[],
-          preferredPosition: 'MANAGER' as Position,
-          imageUrl: null,
-          season: 'catalog',
-          appearances: 0,
-          starts: 0,
-          minutes: 0,
-          goals: 0,
-          assists: 0,
-          cleanSheets: 0,
-          currentFormRating: 70,
-          availabilityRating: 90,
-          competitionStrength: 82,
-          lastFive: [70, 70, 70, 70, 70],
-          role: role('MANAGER', 70),
-          tactics: managerTactics,
-          valuation: valuation(10_000_000, updatedAt),
-          dataSource:
-            'Transfermarkt-derived open catalogue; club coach at import time with neutral tactical estimates',
-          dataUpdatedAt: updatedAt,
-        },
-      ];
-    })
+  const clubStrength = new Map<string, number>();
+  for (const player of players) {
+    const club = clubsRaw.find((entry) => entry['name'] === player.club);
+    if (club === undefined) continue;
+    clubStrength.set(
+      club['club_id']!,
+      (clubStrength.get(club['club_id']!) ?? 0) + (player.valuation.valueEUR ?? 0),
+    );
+  }
+  const managerClubs = [...clubs.values()]
+    .sort(
+      (left, right) =>
+        (clubStrength.get(right['club_id']!) ?? 0) - (clubStrength.get(left['club_id']!) ?? 0) ||
+        left['name']!.localeCompare(right['name']!),
+    )
+    .filter((club) => Boolean(club['coach_name']?.trim()))
     .slice(0, MAX_MANAGERS);
+  const managers: CandidateSnapshot[] = await Promise.all(
+    managerClubs.map(async (club, index) => {
+      const name = club['coach_name']!.trim();
+      const strength = clubStrength.get(club['club_id']!) ?? 10_000_000;
+      const baseline = clamp(62 + Math.log10(Math.max(1, strength) / 10_000_000) * 12);
+      const id = `transfermarkt:coach:${club['club_id']}`;
+      return {
+        id,
+        kind: 'MANAGER' as const,
+        fullName: name,
+        commonName: name,
+        age: 45,
+        nationality: 'Unknown',
+        club: club['name']!,
+        league: club['domestic_competition_id']!,
+        positions: ['MANAGER'] as Position[],
+        preferredPosition: 'MANAGER' as Position,
+        imageUrl: index < MAX_MANAGER_PORTRAITS ? await managerPortrait(name) : null,
+        clubImageUrl: clubCrestUrl(club['club_id']!),
+        season: 'catalog',
+        appearances: 0,
+        starts: 0,
+        minutes: 0,
+        goals: 0,
+        assists: 0,
+        cleanSheets: 0,
+        currentFormRating: baseline,
+        availabilityRating: 90,
+        competitionStrength: 82,
+        lastFive: stableRecentForm(id, baseline),
+        role: role('MANAGER', baseline),
+        tactics: managerTactics,
+        valuation: valuation(Math.max(5_000_000, Math.round(strength * 0.025)), updatedAt),
+        dataSource:
+          'Transfermarkt-derived open catalogue; club coach at import time with neutral tactical estimates',
+        dataUpdatedAt: updatedAt,
+      };
+    }),
+  );
   if (players.length < 300 || managers.length < 9)
     throw new Error(
       `Catalogue too small: ${players.length} specific-position players, ${managers.length} managers.`,

@@ -31,6 +31,19 @@ export default defineConfig({
       testMatch: /visual\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
     },
+    {
+      name: 'mobile-small-motion',
+      testMatch: /visual\.spec\.ts/,
+      // Exercise the narrowest supported phone with real animations enabled;
+      // reduced-motion runs cannot catch transform-driven page overflow.
+      use: {
+        ...devices['Pixel 7'],
+        viewport: { width: 360, height: 640 },
+        screen: { width: 360, height: 640 },
+        deviceScaleFactor: 2,
+        reducedMotion: 'no-preference',
+      },
+    },
   ],
   webServer: [
     {
@@ -43,6 +56,11 @@ export default defineConfig({
         NODE_ENV: 'test',
         PORT: '4000',
         CLIENT_ORIGIN: 'http://localhost:3000,http://127.0.0.1:3000',
+        DATABASE_URL: '',
+        REDIS_URL: '',
+        FOOTBALL_DATA_PROVIDER: 'demo',
+        SESSION_SECRET: 'gavel-xi-playwright-session-secret-32-bytes',
+        DEBUG_ROUTES: 'true',
       },
     },
     {

@@ -143,7 +143,8 @@ describe('authoritative realtime server', () => {
       auctionSequence: number;
       maxBidEUR: number;
     }>(guest, 'auction:limit');
-    requireData(await emitAck<RoomView>(host, 'game:start', { roomCode }));
+    const startedRoom = requireData(await emitAck<RoomView>(host, 'game:start', { roomCode }));
+    expect(startedRoom.replay).toEqual([]);
     await expect(hostLimitEvent).resolves.toEqual({
       roomCode,
       auctionSequence: 1,

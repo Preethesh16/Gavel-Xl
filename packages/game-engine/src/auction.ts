@@ -299,12 +299,16 @@ function forcedAssignment(state: EngineState, cycle: CycleState, now: number): E
   if (!member || !candidate) return [];
   const normalPrice = effectiveReserve(candidate);
   const cannotAfford = normalPrice > member.remainingBudgetEUR;
-  if (cannotAfford && state.settings.budgetMode === 'STRICT') {
+  // A director at exactly zero must never strand the whole room. Strict mode's
+  // bid ceiling normally prevents this state, but recovery/imported games can
+  // still reach it; finish the required XI with a deterministic free allocation.
+  const zeroBudgetFallback = cannotAfford && member.remainingBudgetEUR === 0;
+  if (cannotAfford && state.settings.budgetMode === 'STRICT' && !zeroBudgetFallback) {
     throw new Error(
       `STRICT_COMPLETION_INVARIANT:${member.id}:required=${normalPrice}:remaining=${member.remainingBudgetEUR}`,
     );
   }
-  const emergency = cannotAfford && state.settings.budgetMode === 'CHAOS';
+  const emergency = cannotAfford && (state.settings.budgetMode === 'CHAOS' || zeroBudgetFallback);
   const price = emergency ? member.remainingBudgetEUR : normalPrice;
   const acquisition: SquadEntryView['acquisition'] = emergency ? 'EMERGENCY' : 'FORCED';
   assignCandidate(state, cycle, candidate, member.id, price, now, acquisition);

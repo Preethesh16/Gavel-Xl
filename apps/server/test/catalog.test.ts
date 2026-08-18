@@ -34,6 +34,43 @@ describe('durable player catalog', () => {
     await expect(catalog.getActivePlayers()).rejects.toThrow('catalog is empty');
   });
 
+  it('normalizes legacy all-99 player form and ranks managers by club strength', async () => {
+    const persistence = new InMemoryPersistence();
+    const source = new DevelopmentSnapshotProvider(2);
+    const players = (await source.getActivePlayers()).slice(0, 2).map((player) => ({
+      ...player,
+      club: 'Elite Club',
+      currentFormRating: 99,
+      lastFive: [99, 99, 99, 99, 99],
+      role: Object.fromEntries(
+        Object.keys(player.role).map((key) => [key, 99]),
+      ) as unknown as typeof player.role,
+      dataSource: 'Transfermarkt-derived open catalogue; legacy import',
+    }));
+    const manager = (await source.getManagers())[0]!;
+    await persistence.replaceCatalog({
+      source: 'legacy-catalog',
+      players,
+      managers: [
+        {
+          ...manager,
+          club: 'Elite Club',
+          currentFormRating: 70,
+          dataSource: 'Transfermarkt-derived open catalogue; legacy import',
+        },
+      ],
+    });
+    const catalog = new CatalogProvider(persistence);
+
+    const [normalizedPlayers, normalizedManagers] = await Promise.all([
+      catalog.getActivePlayers(),
+      catalog.getManagers(),
+    ]);
+    expect(normalizedPlayers.every(({ currentFormRating }) => currentFormRating < 99)).toBe(true);
+    expect(new Set(normalizedPlayers[0]!.lastFive)).not.toEqual(new Set([99]));
+    expect(normalizedManagers[0]!.currentFormRating).toBeGreaterThan(70);
+  });
+
   it.each([2, 3, 4, 5, 6, 7, 8])(
     'supplies exactly N exact-position candidates per formation cycle for N=%i',
     async (participantCount) => {

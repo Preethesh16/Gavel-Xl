@@ -74,12 +74,71 @@ function playPattern(context: AudioContext, cue: Cue): void {
   }
 }
 
+function announce(moment: AuctionMoment): void {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  const name = moment.lot?.candidate.commonName || moment.lot?.candidate.fullName;
+  let message: string | null = null;
+  if (moment.kind === 'reveal' && name) {
+    const role = moment.lot?.candidate.kind === 'MANAGER' ? 'manager' : 'player';
+    message = `Next ${role} is ${name}.`;
+  }
+  if (message === null) return;
+  const utterance = new SpeechSynthesisUtterance(message);
+  const voices = window.speechSynthesis.getVoices();
+  utterance.voice =
+    voices.find((voice) => voice.lang.toLowerCase().startsWith('en-gb')) ??
+    voices.find((voice) => voice.lang.toLowerCase().startsWith('en')) ??
+    null;
+  utterance.rate = 0.94;
+  utterance.pitch = 0.92;
+  utterance.volume = 0.9;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
+
 export function useSound(roomDefault: boolean, moment: AuctionMoment | null) {
   const [enabled, setEnabled] = useState(roomDefault);
   const contextRef = useRef<AudioContext | null>(null);
+  const backgroundRef = useRef<HTMLAudioElement | null>(null);
+  const soldRef = useRef<HTMLAudioElement | null>(null);
   const playedMoment = useRef<number | null>(null);
 
   useEffect(() => setEnabled(storedSound(roomDefault)), [roomDefault]);
+
+  useEffect(() => {
+    const background = new Audio('/audio/background-music.mp3');
+    background.loop = true;
+    background.preload = 'auto';
+    background.volume = 0.16;
+    backgroundRef.current = background;
+    const sold = new Audio('/audio/here-we-go.mp3');
+    sold.preload = 'auto';
+    sold.volume = 0.78;
+    soldRef.current = sold;
+    return () => {
+      background.pause();
+      sold.pause();
+      backgroundRef.current = null;
+      soldRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const background = backgroundRef.current;
+    if (!background || process.env.NEXT_PUBLIC_E2E === 'true') return;
+    if (!enabled) {
+      background.pause();
+      return;
+    }
+    const start = () => void background.play().catch(() => undefined);
+    start();
+    window.addEventListener('pointerdown', start, { once: true });
+    window.addEventListener('keydown', start, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', start);
+      window.removeEventListener('keydown', start);
+    };
+  }, [enabled]);
 
   const play = useCallback(
     (cue: Cue) => {
@@ -111,13 +170,32 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null) {
       cue === 'bid'
     )
       play(cue);
-  }, [moment, play]);
+    if (
+      enabled &&
+      process.env.NEXT_PUBLIC_E2E !== 'true' &&
+      (moment.kind === 'sold' || moment.kind === 'forced')
+    ) {
+      const sold = soldRef.current;
+      if (sold) {
+        sold.currentTime = 0;
+        void sold.play().catch(() => undefined);
+      }
+    }
+    if (enabled && process.env.NEXT_PUBLIC_E2E !== 'true') announce(moment);
+  }, [enabled, moment, play]);
 
   const toggle = useCallback(() => {
     setEnabled((current) => {
       const next = !current;
       try {
         window.localStorage.setItem(SOUND_KEY, next ? 'on' : 'off');
+        if (!next) {
+          backgroundRef.current?.pause();
+          soldRef.current?.pause();
+          if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        } else {
+          void backgroundRef.current?.play().catch(() => undefined);
+        }
       } catch {
         // Local preference persistence is optional.
       }

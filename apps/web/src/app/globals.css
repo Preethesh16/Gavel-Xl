@@ -2024,6 +2024,12 @@ summary:focus-visible {
     0 0 0 130px rgba(241, 191, 0, 0.009);
   animation: halo-breathe 3s ease-in-out infinite;
 }
+.auction-lights {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
 .auction-lights i {
   position: absolute;
   z-index: -1;
@@ -2222,7 +2228,13 @@ summary:focus-visible {
   background: rgba(0, 0, 0, 0.24);
   color: #d8ded5;
   font: 900 9px var(--display);
+  font-size: 18px;
   letter-spacing: 0.05em;
+}
+.identity-stamp span img {
+  width: 25px;
+  height: 25px;
+  object-fit: contain;
 }
 .player-card__portrait {
   position: absolute;
@@ -6214,7 +6226,7 @@ body {
     gap: 30px;
   }
   .hero__stage {
-    min-height: 790px;
+    min-height: 650px;
   }
   .hero__copy {
     padding: 30px 14px 0;
@@ -6223,11 +6235,11 @@ body {
     margin-bottom: 18px;
   }
   .hero h1 {
-    font-size: clamp(44px, 15vw, 63px);
+    font-size: clamp(38px, 12vw, 50px);
+    line-height: 0.88;
   }
   .hero__proof {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: none;
   }
   .cover-athlete__paper {
     width: 90%;
@@ -6238,10 +6250,10 @@ body {
     font-size: 24px;
   }
   .cover-athlete__image {
-    width: 98%;
+    width: 82%;
     height: auto;
-    right: -11%;
-    top: 38%;
+    right: 5%;
+    top: 31%;
     bottom: auto;
   }
   .cover-athlete__name {
@@ -6396,6 +6408,26 @@ body {
   .segmented-tabs button {
     min-width: 0;
     flex: 1;
+  }
+  .results-nav {
+    width: 100%;
+    min-width: 0;
+    min-height: 88px;
+    height: auto;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: hidden;
+  }
+  .results-nav button {
+    width: auto;
+    min-width: 0;
+    height: 44px;
+    padding: 0 4px;
+    flex: none;
+    gap: 4px;
+    font-size: 6px;
+    white-space: normal;
   }
   .team-board > footer {
     grid-template-columns: 1fr 1fr;
