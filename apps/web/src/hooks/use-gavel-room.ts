@@ -197,17 +197,43 @@ export function useGavelRoom(): UseGavelRoomValue {
     [acceptRoom],
   );
 
+  const waitForConnection = useCallback((timeout = 20_000): Promise<Socket | null> => {
+    const socket = socketRef.current;
+    if (!socket) return Promise.resolve(null);
+    if (socket.connected) return Promise.resolve(socket);
+    setConnection(sessionRef.current || roomRef.current ? 'reconnecting' : 'connecting');
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (connectedSocket: Socket | null) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        socket.off('connect', connected);
+        resolve(connectedSocket);
+      };
+      const connected = () => finish(socket);
+      const timer = window.setTimeout(() => finish(socket.connected ? socket : null), timeout);
+      socket.on('connect', connected);
+      socket.connect();
+    });
+  }, []);
+
   const emitAck = useCallback(
-    <T>(event: string, payload: unknown, timeout = 12_000): Promise<Ack<T>> => {
+    async <T>(event: string, payload: unknown, timeout = 12_000): Promise<Ack<T>> => {
+      const socket = await waitForConnection();
+      if (!socket?.connected) {
+        const restoringRoom = Boolean(sessionRef.current || roomRef.current);
+        return {
+          ok: false,
+          error: {
+            code: 'OFFLINE',
+            message: restoringRoom
+              ? 'Still reconnecting to your war room. Please try again in a moment.'
+              : 'Gavel XI is taking longer than expected to connect. Please try again.',
+          },
+        };
+      }
       return new Promise((resolve) => {
-        const socket = socketRef.current;
-        if (!socket?.connected) {
-          resolve({
-            ok: false,
-            error: { code: 'OFFLINE', message: 'Reconnecting to the auction room…' },
-          });
-          return;
-        }
         socket
           .timeout(timeout)
           .emit(event, payload, (timeoutError: Error | null, response: Ack<T> | undefined) => {
@@ -225,7 +251,7 @@ export function useGavelRoom(): UseGavelRoomValue {
           });
       });
     },
-    [],
+    [waitForConnection],
   );
 
   useEffect(() => {
@@ -282,8 +308,10 @@ export function useGavelRoom(): UseGavelRoomValue {
       setError(null);
       resume();
     });
-    socket.on('disconnect', () => setConnection('reconnecting'));
-    socket.io.on('reconnect_attempt', () => setConnection('reconnecting'));
+    const pendingConnectionState = (): ConnectionState =>
+      sessionRef.current || roomRef.current ? 'reconnecting' : 'connecting';
+    socket.on('disconnect', () => setConnection(pendingConnectionState()));
+    socket.io.on('reconnect_attempt', () => setConnection(pendingConnectionState()));
     socket.io.on('reconnect_failed', () => {
       setConnection('offline');
       setInitialising(false);

@@ -80,3 +80,30 @@ test('landing rejects malformed entry details before contacting the room', async
     await director.context.close();
   }
 });
+
+test('fresh room creation waits for a dropped connection instead of showing a reconnecting-room error', async ({
+  browser,
+}) => {
+  const director = await newDirector(browser, 'ColdStart');
+  try {
+    await director.page.goto('/');
+    await expect(director.page.getByTestId('landing-screen')).toBeVisible();
+    await director.context.setOffline(true);
+    await director.page.waitForTimeout(500);
+    await director.page.getByTestId('create-room-open').click();
+    await director.page.getByTestId('create-name-input').fill(director.name);
+    await director.page.getByTestId('create-room-submit').click();
+    await expect(director.page.getByTestId('create-room-submit')).toBeDisabled();
+    await expect(director.page.getByTestId('error-toast')).toHaveCount(0);
+
+    await director.context.setOffline(false);
+    await expect(director.page.getByTestId('lobby-screen')).toBeVisible({ timeout: 25_000 });
+    await expect(director.page.getByTestId('error-toast')).toHaveCount(0);
+    expect(
+      director.runtimeErrors.filter((message) => !message.includes('ERR_INTERNET_DISCONNECTED')),
+    ).toEqual([]);
+  } finally {
+    await director.context.setOffline(false).catch(() => undefined);
+    await director.context.close();
+  }
+});
