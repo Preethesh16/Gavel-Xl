@@ -90,6 +90,20 @@ function isCuratedManager(candidate: CandidateSnapshot): boolean {
   return candidate.kind === 'MANAGER' && candidate.id.startsWith('gavel-manager:');
 }
 
+const FEATURED_MANAGER_IDS = new Set([
+  'gavel-manager:jose-mourinho',
+  'gavel-manager:hansi-flick',
+  'gavel-manager:pep-guardiola',
+  'gavel-manager:jurgen-klopp',
+  'gavel-manager:xabi-alonso',
+  'gavel-manager:carlo-ancelotti',
+  'gavel-manager:lionel-scaloni',
+]);
+
+function isFeaturedManager(candidate: CandidateSnapshot): boolean {
+  return candidate.kind === 'MANAGER' && FEATURED_MANAGER_IDS.has(candidate.id);
+}
+
 /**
  * Builds a weighted random order without replacement. Higher-ranked strong
  * candidates receive a pronounced star preference, while the baseline weight
@@ -189,14 +203,23 @@ function candidatesForCycle(
       `INSUFFICIENT_CANDIDATES:${slot.position}:available=${available.length}/${count}`,
     );
   }
+  const recognizableManagerFallbacks = available.filter(
+    (candidate) => isCuratedManager(candidate) && !isFeaturedManager(candidate),
+  );
   const fallbackPool =
-    preferredFallback.length > 0
-      ? preferredFallback
-      : [...available].sort(
+    slot.position === 'MANAGER' && recognizableManagerFallbacks.length > 0
+      ? recognizableManagerFallbacks.sort(
           (left, right) =>
-            Math.abs((percentiles.get(left.id) ?? 0) - 62) -
-              Math.abs((percentiles.get(right.id) ?? 0) - 62) || left.id.localeCompare(right.id),
-        );
+            scoreCurrentForm(left, settings.formLookback) -
+              scoreCurrentForm(right, settings.formLookback) || left.id.localeCompare(right.id),
+        )
+      : preferredFallback.length > 0
+        ? preferredFallback
+        : [...available].sort(
+            (left, right) =>
+              Math.abs((percentiles.get(left.id) ?? 0) - 62) -
+                Math.abs((percentiles.get(right.id) ?? 0) - 62) || left.id.localeCompare(right.id),
+          );
   const fallbackPick = diversify(fallbackPool, 1, random);
   const fallbackId = fallbackPick.selected[0]!.id;
   const strongWithoutFallback = [...preferredStrong, ...available.filter(isCuratedManager)].filter(
@@ -221,7 +244,7 @@ function candidatesForCycle(
       : [...strongWithoutFallback, ...fillers.slice(0, count - 1 - strongWithoutFallback.length)];
   let strongPick: { selected: CandidateSnapshot[]; random: SeededRandom };
   if (slot.position === 'MANAGER') {
-    const featured = shuffle(strongPool.filter(isCuratedManager), fallbackPick.random);
+    const featured = shuffle(strongPool.filter(isFeaturedManager), fallbackPick.random);
     const selected = featured.values.slice(0, count - 1);
     const remaining = strongPool.filter(
       (candidate) => !selected.some(({ id }) => id === candidate.id),

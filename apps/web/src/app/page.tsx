@@ -12,7 +12,7 @@ import { ResultsHub } from '@/components/results-hub';
 import { RoomHeader } from '@/components/room-header';
 import { LoadingRoom, Toasts } from '@/components/system-feedback';
 import { useGavelRoom } from '@/hooks/use-gavel-room';
-import { useSound } from '@/hooks/use-sound';
+import { useSound, type MusicMode } from '@/hooks/use-sound';
 
 const LOBBY_PHASES = ['LOBBY', 'PREPARING_DATA', 'GENERATING_POOL'];
 const AUCTION_PHASES = [
@@ -29,8 +29,14 @@ const AUCTION_PHASES = [
 export default function Home() {
   const game = useGavelRoom();
   const [guideOpen, setGuideOpen] = useState(false);
-  const backgroundActive = !game.room || game.room.phase === 'LOBBY';
-  const sound = useSound(game.room?.settings.soundEnabled ?? true, game.moment, backgroundActive);
+  const musicMode: MusicMode = !game.room
+    ? 'lobby'
+    : LOBBY_PHASES.includes(game.room.phase)
+      ? 'lobby'
+      : game.room.phase === 'RESULTS' || game.room.phase === 'COMPLETE'
+        ? 'off'
+        : 'auction';
+  const sound = useSound(game.room?.settings.soundEnabled ?? true, game.moment, musicMode);
   const lastRoom = useRef<string | null>(null);
   const suggestedCode = useMemo(() => {
     if (typeof window === 'undefined') return undefined;

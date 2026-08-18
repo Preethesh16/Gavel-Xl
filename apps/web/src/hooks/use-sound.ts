@@ -8,6 +8,18 @@ const SOUND_KEY = 'gavel-xi:sound';
 type Cue =
   'join' | 'reveal' | 'bid' | 'outbid' | 'sold' | 'unsold' | 'forced' | 'checkpoint' | 'winner';
 
+export type MusicMode = 'lobby' | 'auction' | 'off';
+
+interface PendingAnnouncement {
+  key: string;
+  message: string;
+}
+
+type SoundTestWindow = typeof window & {
+  __GAVEL_SOUND_TEST__?: boolean;
+  __gavelCues?: Cue[];
+};
+
 function storedSound(fallback: boolean): boolean {
   try {
     const value = window.localStorage.getItem(SOUND_KEY);
@@ -51,8 +63,9 @@ function playPattern(context: AudioContext, cue: Cue): void {
     oscillator(context, 640, now + 0.22, 0.35, 0.04, 'sine');
     oscillator(context, 810, now + 0.3, 0.32, 0.03, 'sine');
   } else if (cue === 'unsold') {
-    oscillator(context, 180, now, 0.35, 0.055, 'triangle');
-    oscillator(context, 135, now + 0.2, 0.45, 0.04, 'triangle');
+    oscillator(context, 220, now, 0.24, 0.11, 'sawtooth');
+    oscillator(context, 165, now + 0.22, 0.3, 0.095, 'sawtooth');
+    oscillator(context, 110, now + 0.5, 0.48, 0.08, 'triangle');
   } else if (cue === 'forced') {
     oscillator(context, 260, now, 0.16, 0.05, 'square');
     oscillator(context, 390, now + 0.16, 0.16, 0.05, 'square');
@@ -85,37 +98,115 @@ function announcementFor(moment: AuctionMoment): { key: string; message: string 
 
 function speechAllowed(): boolean {
   if (process.env.NEXT_PUBLIC_E2E !== 'true') return true;
-  return Boolean(
-    typeof window !== 'undefined' &&
-    (window as typeof window & { __GAVEL_SOUND_TEST__?: boolean }).__GAVEL_SOUND_TEST__,
-  );
+  return Boolean(typeof window !== 'undefined' && (window as SoundTestWindow).__GAVEL_SOUND_TEST__);
 }
 
-function utteranceFor(message: string): SpeechSynthesisUtterance {
+function audioAllowed(): boolean {
+  return process.env.NEXT_PUBLIC_E2E !== 'true' || speechAllowed();
+}
+
+function voiceScore(voice: SpeechSynthesisVoice): number {
+  const language = voice.lang.toLocaleLowerCase();
+  if (!language.startsWith('en')) return -10_000;
+  const name = voice.name.toLocaleLowerCase();
+  let score = language.startsWith('en-gb') ? 25 : language.startsWith('en-us') ? 20 : 10;
+  for (const [keyword, points] of [
+    ['natural', 180],
+    ['neural', 170],
+    ['premium', 150],
+    ['enhanced', 140],
+    ['google', 100],
+    ['microsoft', 90],
+    ['samantha', 85],
+    ['sonia', 85],
+    ['aria', 85],
+    ['jenny', 80],
+    ['daniel', 75],
+    ['ryan', 75],
+  ] as const) {
+    if (name.includes(keyword)) score += points;
+  }
+  if (name.includes('espeak') || name.includes('festival') || name.includes('compact'))
+    score -= 300;
+  return score;
+}
+
+function utteranceFor(message: string, onDone: () => void): SpeechSynthesisUtterance {
   const utterance = new SpeechSynthesisUtterance(message);
-  const voices = window.speechSynthesis.getVoices();
-  utterance.voice =
-    voices.find((voice) => voice.lang.toLowerCase().startsWith('en-gb')) ??
-    voices.find((voice) => voice.lang.toLowerCase().startsWith('en')) ??
-    null;
-  utterance.rate = 0.94;
-  utterance.pitch = 0.92;
-  utterance.volume = 0.9;
+  const voices = window.speechSynthesis
+    .getVoices()
+    .filter((voice) => voice.lang.toLocaleLowerCase().startsWith('en'))
+    .sort((left, right) => voiceScore(right) - voiceScore(left));
+  utterance.voice = voices[0] ?? null;
+  utterance.rate = 0.97;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+  utterance.onend = onDone;
+  utterance.onerror = onDone;
   return utterance;
 }
 
-export function useSound(
-  roomDefault: boolean,
-  moment: AuctionMoment | null,
-  backgroundActive: boolean,
-) {
+export function useSound(roomDefault: boolean, moment: AuctionMoment | null, musicMode: MusicMode) {
   const [enabled, setEnabled] = useState(roomDefault);
+  const enabledRef = useRef(enabled);
+  const musicModeRef = useRef(musicMode);
   const contextRef = useRef<AudioContext | null>(null);
   const backgroundRef = useRef<HTMLAudioElement | null>(null);
   const soldRef = useRef<HTMLAudioElement | null>(null);
   const playedMoment = useRef<number | null>(null);
   const announcedLot = useRef<string | null>(null);
   const announcementTimer = useRef<number | null>(null);
+  const pendingAnnouncement = useRef<PendingAnnouncement | null>(null);
+  const duckReasons = useRef(new Set<'sold' | 'speech'>());
+
+  enabledRef.current = enabled;
+  musicModeRef.current = musicMode;
+
+  const updateMusicMix = useCallback(() => {
+    const background = backgroundRef.current;
+    if (!background) return;
+    const baseVolume = musicModeRef.current === 'auction' ? 0.09 : 0.16;
+    background.volume = duckReasons.current.size > 0 ? Math.min(baseVolume, 0.035) : baseVolume;
+  }, []);
+
+  const setDucked = useCallback(
+    (reason: 'sold' | 'speech', active: boolean) => {
+      if (active) duckReasons.current.add(reason);
+      else duckReasons.current.delete(reason);
+      updateMusicMix();
+    },
+    [updateMusicMix],
+  );
+
+  const flushAnnouncement = useCallback(() => {
+    if (
+      !enabledRef.current ||
+      !speechAllowed() ||
+      !pendingAnnouncement.current ||
+      !('speechSynthesis' in window)
+    )
+      return;
+    const sold = soldRef.current;
+    if (sold && !sold.paused && !sold.ended) return;
+
+    const pending = pendingAnnouncement.current;
+    pendingAnnouncement.current = null;
+    if (announcementTimer.current !== null) window.clearTimeout(announcementTimer.current);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
+    announcementTimer.current = window.setTimeout(() => {
+      if (!enabledRef.current) return;
+      const finish = () => setDucked('speech', false);
+      const utterance = utteranceFor(pending.message, finish);
+      setDucked('speech', true);
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch {
+        finish();
+      }
+      announcementTimer.current = null;
+    }, 80);
+  }, [setDucked]);
 
   useEffect(() => setEnabled(storedSound(roomDefault)), [roomDefault]);
 
@@ -129,18 +220,27 @@ export function useSound(
     sold.preload = 'auto';
     sold.volume = 0.78;
     soldRef.current = sold;
+    const soldFinished = () => {
+      setDucked('sold', false);
+      flushAnnouncement();
+    };
+    sold.addEventListener('ended', soldFinished);
+    sold.addEventListener('error', soldFinished);
     return () => {
       background.pause();
       sold.pause();
+      sold.removeEventListener('ended', soldFinished);
+      sold.removeEventListener('error', soldFinished);
       backgroundRef.current = null;
       soldRef.current = null;
     };
-  }, []);
+  }, [flushAnnouncement, setDucked]);
 
   useEffect(() => {
     const background = backgroundRef.current;
-    if (!background || process.env.NEXT_PUBLIC_E2E === 'true') return;
-    if (!enabled || !backgroundActive) {
+    if (!background || !audioAllowed()) return;
+    updateMusicMix();
+    if (!enabled || musicMode === 'off') {
       background.pause();
       background.currentTime = 0;
       return;
@@ -153,25 +253,34 @@ export function useSound(
       window.removeEventListener('pointerdown', start);
       window.removeEventListener('keydown', start);
     };
-  }, [backgroundActive, enabled]);
+  }, [enabled, musicMode, updateMusicMix]);
 
   useEffect(() => {
-    if (!enabled || !speechAllowed() || !('speechSynthesis' in window)) return;
-    const unlockSpeech = () => {
+    if (!enabled) return;
+    const unlockAudio = () => {
       try {
-        window.speechSynthesis.resume();
-        const silent = new SpeechSynthesisUtterance(' ');
-        silent.volume = 0;
-        window.speechSynthesis.speak(silent);
+        if (audioAllowed()) {
+          const context = contextRef.current ?? new AudioContext();
+          contextRef.current = context;
+          void context.resume();
+          if (musicModeRef.current !== 'off')
+            void backgroundRef.current?.play().catch(() => undefined);
+        }
+        if (speechAllowed() && 'speechSynthesis' in window) {
+          window.speechSynthesis.resume();
+          const silent = new SpeechSynthesisUtterance(' ');
+          silent.volume = 0;
+          window.speechSynthesis.speak(silent);
+        }
       } catch {
-        // Some browsers do not require (or permit) a speech warm-up.
+        // Audio is optional and some browsers do not permit a warm-up.
       }
     };
-    window.addEventListener('pointerdown', unlockSpeech, { once: true });
-    window.addEventListener('keydown', unlockSpeech, { once: true });
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
     return () => {
-      window.removeEventListener('pointerdown', unlockSpeech);
-      window.removeEventListener('keydown', unlockSpeech);
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
     };
   }, [enabled]);
 
@@ -184,7 +293,11 @@ export function useSound(
 
   const play = useCallback(
     (cue: Cue) => {
-      if (!enabled || process.env.NEXT_PUBLIC_E2E === 'true') return;
+      if (!enabled || !audioAllowed()) return;
+      if (process.env.NEXT_PUBLIC_E2E === 'true') {
+        (window as SoundTestWindow).__gavelCues?.push(cue);
+        return;
+      }
       try {
         const context = contextRef.current ?? new AudioContext();
         contextRef.current = context;
@@ -212,15 +325,21 @@ export function useSound(
       cue === 'bid'
     )
       play(cue);
-    if (
-      enabled &&
-      process.env.NEXT_PUBLIC_E2E !== 'true' &&
-      (moment.kind === 'sold' || moment.kind === 'forced')
-    ) {
+    if (enabled && audioAllowed() && (moment.kind === 'sold' || moment.kind === 'forced')) {
       const sold = soldRef.current;
       if (sold) {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        setDucked('speech', false);
+        if (announcementTimer.current !== null) {
+          window.clearTimeout(announcementTimer.current);
+          announcementTimer.current = null;
+        }
         sold.currentTime = 0;
-        void sold.play().catch(() => undefined);
+        setDucked('sold', true);
+        void sold.play().catch(() => {
+          setDucked('sold', false);
+          flushAnnouncement();
+        });
       }
     }
     const announcement = announcementFor(moment);
@@ -232,23 +351,15 @@ export function useSound(
       'speechSynthesis' in window
     ) {
       announcedLot.current = announcement.key;
-      if (announcementTimer.current !== null) window.clearTimeout(announcementTimer.current);
-      const utterance = utteranceFor(announcement.message);
-      // Chrome can drop an utterance when cancel() and speak() happen in the
-      // same task. Let the queue settle, and accept either reveal or opened so
-      // a zero-second reveal cannot race the announcement away.
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.resume();
-      announcementTimer.current = window.setTimeout(() => {
-        window.speechSynthesis.speak(utterance);
-        announcementTimer.current = null;
-      }, 60);
+      pendingAnnouncement.current = announcement;
+      flushAnnouncement();
     }
-  }, [enabled, moment, play]);
+  }, [enabled, flushAnnouncement, moment, play, setDucked]);
 
   const toggle = useCallback(() => {
     setEnabled((current) => {
       const next = !current;
+      enabledRef.current = next;
       try {
         window.localStorage.setItem(SOUND_KEY, next ? 'on' : 'off');
         if (!next) {
@@ -258,8 +369,11 @@ export function useSound(
             window.clearTimeout(announcementTimer.current);
             announcementTimer.current = null;
           }
+          pendingAnnouncement.current = null;
+          duckReasons.current.clear();
           if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        } else if (backgroundActive) {
+        } else if (musicModeRef.current !== 'off') {
+          updateMusicMix();
           void backgroundRef.current?.play().catch(() => undefined);
         }
       } catch {
@@ -267,7 +381,7 @@ export function useSound(
       }
       return next;
     });
-  }, [backgroundActive]);
+  }, [updateMusicMix]);
 
   return { enabled, toggle, play };
 }

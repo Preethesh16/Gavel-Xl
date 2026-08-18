@@ -99,6 +99,11 @@ describe('durable player catalog', () => {
     expect(featured.every((manager) => (manager?.currentFormRating ?? 0) > 70)).toBe(true);
     expect(new Set(featured.map((manager) => manager?.currentFormRating)).size).toBeGreaterThan(3);
     expect(stored.some(({ currentFormRating }) => currentFormRating < 80)).toBe(true);
+    expect(
+      stored
+        .filter(({ id }) => id.startsWith('gavel-manager:'))
+        .every(({ imageUrl }) => Boolean(imageUrl)),
+    ).toBe(true);
   });
 
   it.each([2, 3, 4, 5, 6, 7, 8])(
@@ -173,6 +178,12 @@ describe('durable player catalog', () => {
           ]),
         );
         expect(managerCycle.candidates.filter(({ tier }) => tier === 'FALLBACK')).toHaveLength(1);
+        expect(
+          managerCycle.candidates.every(
+            ({ candidate }) =>
+              candidate.id.startsWith('gavel-manager:') && Boolean(candidate.imageUrl),
+          ),
+        ).toBe(true);
       }
     },
   );
