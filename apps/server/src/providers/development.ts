@@ -9,6 +9,7 @@ import type {
   ValuationResult,
 } from './types.js';
 import { PLAYER_POSITIONS } from './types.js';
+import { curatedManagers } from './curated-managers.js';
 
 function clamp(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -97,51 +98,55 @@ export class DevelopmentSnapshotProvider implements FootballDataProvider {
       }),
     );
 
-    this.#managers = Array.from({ length: Math.max(12, countPerPosition) }, (_, index) => {
-      const rating = index < 10 ? 94 - index : 72 - (index % 8);
-      const tactics: TacticalProfile = {
-        possession: clamp(rating + ((index * 3) % 19) - 9),
-        pressing: clamp(rating + ((index * 5) % 19) - 9),
-        transition: clamp(rating + ((index * 7) % 19) - 9),
-        lowBlock: clamp(rating + ((index * 11) % 19) - 9),
-        highLine: clamp(rating + ((index * 13) % 19) - 9),
-        directness: clamp(rating + ((index * 2) % 19) - 9),
-        widthPreference: clamp(rating + ((index * 4) % 19) - 9),
-        buildUpRisk: clamp(rating + ((index * 6) % 19) - 9),
-        tacticalFlexibility: clamp(rating + ((index * 8) % 19) - 9),
-      };
-      return {
-        id: `dev-manager-${String(index + 1).padStart(2, '0')}`,
-        kind: 'MANAGER' as const,
-        fullName: `Development Manager ${String(index + 1).padStart(2, '0')}`,
-        commonName: `DEV BOSS ${index + 1}`,
-        age: 38 + index,
-        nationality: ['ESP', 'ITA', 'GER', 'ARG', 'POR', 'FRA'][index % 6]!,
-        club: `Development Club ${(index % 12) + 1}`,
-        league: 'Development League',
-        positions: ['MANAGER'] as Position[],
-        preferredPosition: 'MANAGER' as const,
-        imageUrl: null,
-        season: 'DEVELOPMENT',
-        appearances: 30,
-        starts: 30,
-        minutes: 0,
-        goals: 0,
-        assists: 0,
-        cleanSheets: 0,
-        currentFormRating: clamp(rating),
-        availabilityRating: 100,
-        competitionStrength: 75,
-        lastFive: Array.from({ length: 5 }, (_, match) =>
-          clamp(rating + ((index + match) % 7) - 3),
-        ),
-        role: roleFor('MANAGER', rating, index),
-        tactics,
-        valuation: valuation(Math.max(5_000_000, 42_000_000 - index * 1_500_000)),
-        dataSource: 'development-snapshot (synthetic, non-current)',
-        dataUpdatedAt: new Date(0).toISOString(),
-      } satisfies NormalizedManager;
-    });
+    const developmentManagers = Array.from(
+      { length: Math.max(12, countPerPosition) },
+      (_, index) => {
+        const rating = index < 10 ? 94 - index : 72 - (index % 8);
+        const tactics: TacticalProfile = {
+          possession: clamp(rating + ((index * 3) % 19) - 9),
+          pressing: clamp(rating + ((index * 5) % 19) - 9),
+          transition: clamp(rating + ((index * 7) % 19) - 9),
+          lowBlock: clamp(rating + ((index * 11) % 19) - 9),
+          highLine: clamp(rating + ((index * 13) % 19) - 9),
+          directness: clamp(rating + ((index * 2) % 19) - 9),
+          widthPreference: clamp(rating + ((index * 4) % 19) - 9),
+          buildUpRisk: clamp(rating + ((index * 6) % 19) - 9),
+          tacticalFlexibility: clamp(rating + ((index * 8) % 19) - 9),
+        };
+        return {
+          id: `dev-manager-${String(index + 1).padStart(2, '0')}`,
+          kind: 'MANAGER' as const,
+          fullName: `Development Manager ${String(index + 1).padStart(2, '0')}`,
+          commonName: `DEV BOSS ${index + 1}`,
+          age: 38 + index,
+          nationality: ['ESP', 'ITA', 'GER', 'ARG', 'POR', 'FRA'][index % 6]!,
+          club: `Development Club ${(index % 12) + 1}`,
+          league: 'Development League',
+          positions: ['MANAGER'] as Position[],
+          preferredPosition: 'MANAGER' as const,
+          imageUrl: null,
+          season: 'DEVELOPMENT',
+          appearances: 30,
+          starts: 30,
+          minutes: 0,
+          goals: 0,
+          assists: 0,
+          cleanSheets: 0,
+          currentFormRating: clamp(rating),
+          availabilityRating: 100,
+          competitionStrength: 75,
+          lastFive: Array.from({ length: 5 }, (_, match) =>
+            clamp(rating + ((index + match) % 7) - 3),
+          ),
+          role: roleFor('MANAGER', rating, index),
+          tactics,
+          valuation: valuation(Math.max(5_000_000, 42_000_000 - index * 1_500_000)),
+          dataSource: 'development-snapshot (synthetic, non-current)',
+          dataUpdatedAt: new Date(0).toISOString(),
+        } satisfies NormalizedManager;
+      },
+    );
+    this.#managers = [...curatedManagers(), ...developmentManagers];
   }
 
   async getActivePlayers(): Promise<NormalizedPlayer[]> {

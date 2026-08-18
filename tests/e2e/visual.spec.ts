@@ -77,6 +77,9 @@ test('landing, lobby, auction and results stay readable without browser errors',
     await setLargeBudget(page, roomCode);
     await readyAndStart(host, [guest], roomCode, { preserveLargeBudget: true });
     await expect(page.getByTestId('player-card')).toBeVisible();
+    await expect(page.getByTestId('card-club-name')).not.toBeEmpty();
+    await expect(page.getByTestId('nationality-flag')).not.toContainText('🌐');
+    await expect(page.getByTestId('card-form-rating')).not.toHaveText('99');
     const pause = page.getByTestId('auction-pause');
     await expect(pause).toHaveText('PAUSE AUCTION');
     await expectNoHorizontalOverflow(page, 'auction');
@@ -94,11 +97,22 @@ test('landing, lobby, auction and results stay readable without browser errors',
       .toBe(0);
     await attachScreenshot(page, testInfo, 'auction');
 
+    let managerChecked = false;
     await playToResults(host, [host, guest], roomCode, {
       onCheckpoint: async () => {
         await expectNoHorizontalOverflow(page, 'checkpoint');
       },
+      onLot: async (state) => {
+        if (state.currentLot?.candidate.kind !== 'MANAGER') return;
+        await expect(page.getByTestId('current-position')).toContainText('MANAGER');
+        await expect(page.getByTestId('card-portrait')).toBeVisible();
+        await expect(page.getByTestId('card-form-rating')).not.toHaveText('70');
+        await expect(page.getByTestId('card-club-name')).not.toBeEmpty();
+        await attachScreenshot(page, testInfo, 'manager');
+        managerChecked = true;
+      },
     });
+    expect(managerChecked, 'the draft should include a pictured featured manager').toBe(true);
     await expect(page.getByTestId('results-podium')).toBeVisible();
     await expectNoHorizontalOverflow(page, 'results');
     await attachScreenshot(page, testInfo, 'results');

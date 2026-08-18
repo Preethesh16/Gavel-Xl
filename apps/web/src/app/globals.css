@@ -2314,13 +2314,23 @@ summary:focus-visible {
   right: 20px;
   bottom: 48px;
 }
-.player-card__copy > p {
+.player-card__copy > .player-card__kicker {
   margin: 0 0 5px;
   color: #a2a9a0;
   font-size: 7px;
   font-weight: 800;
   letter-spacing: 0.13em;
   text-transform: uppercase;
+}
+.player-card__club-name {
+  max-width: 100%;
+  margin: 7px 0 0;
+  color: var(--card-accent);
+  font: 900 11px/1.2 var(--display);
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+  text-wrap: balance;
 }
 .player-card__copy h2 {
   max-width: 100%;

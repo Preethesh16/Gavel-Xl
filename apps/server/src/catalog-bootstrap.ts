@@ -146,6 +146,11 @@ function stableRecentForm(id: string, baseline: number): number[] {
   });
 }
 
+function recentFormRating(lastFive: number[]): number {
+  const weights = [0.12, 0.16, 0.19, 0.23, 0.3];
+  return clamp(lastFive.reduce((total, value, index) => total + value * weights[index]!, 0));
+}
+
 function clubCrestUrl(clubId: string): string {
   return `https://tmssl.akamaized.net/images/wappen/head/${clubId}.png`;
 }
@@ -256,6 +261,7 @@ export async function createTransfermarktCatalog(): Promise<{
       return;
     const id = `transfermarkt:${entry['player_id']}`;
     const baseline = marketDerivedRating(value);
+    const lastFive = stableRecentForm(id, baseline);
     const candidate: CandidateSnapshot = {
       id,
       kind: 'PLAYER' as const,
@@ -276,10 +282,10 @@ export async function createTransfermarktCatalog(): Promise<{
       goals: 0,
       assists: 0,
       cleanSheets: 0,
-      currentFormRating: baseline,
+      currentFormRating: recentFormRating(lastFive),
       availabilityRating: 75,
       competitionStrength: 82,
-      lastFive: stableRecentForm(id, baseline),
+      lastFive,
       role: role(position, baseline),
       valuation: valuation(value, updatedAt),
       dataSource:
@@ -320,6 +326,7 @@ export async function createTransfermarktCatalog(): Promise<{
       const strength = clubStrength.get(club['club_id']!) ?? 10_000_000;
       const baseline = clamp(62 + Math.log10(Math.max(1, strength) / 10_000_000) * 12);
       const id = `transfermarkt:coach:${club['club_id']}`;
+      const lastFive = stableRecentForm(id, baseline);
       return {
         id,
         kind: 'MANAGER' as const,
@@ -340,10 +347,10 @@ export async function createTransfermarktCatalog(): Promise<{
         goals: 0,
         assists: 0,
         cleanSheets: 0,
-        currentFormRating: baseline,
+        currentFormRating: recentFormRating(lastFive),
         availabilityRating: 90,
         competitionStrength: 82,
-        lastFive: stableRecentForm(id, baseline),
+        lastFive,
         role: role('MANAGER', baseline),
         tactics: managerTactics,
         valuation: valuation(Math.max(5_000_000, Math.round(strength * 0.025)), updatedAt),

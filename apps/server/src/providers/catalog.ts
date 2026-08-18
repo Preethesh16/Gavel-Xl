@@ -8,6 +8,7 @@ import type {
   PlayerSeasonStats,
 } from './types.js';
 import { ProviderUnavailableError } from './types.js';
+import { curatedManagers } from './curated-managers.js';
 
 /**
  * Reads the immutable player catalogue. This adapter deliberately makes no
@@ -109,13 +110,52 @@ export class CatalogProvider implements FootballDataProvider {
         (clubStrength.get(player.club) ?? 0) + (player.valuation.valueEUR ?? 0),
       );
     }
+    const normalizedManagers = catalog.managers.map((candidate) =>
+      normalizeCatalogCandidate(candidate, clubStrength.get(candidate.club)),
+    );
+    const featuredManagers = curatedManagers();
+    const featuredNames = new Set(
+      featuredManagers.map((candidate) => normalizedName(candidate.fullName)),
+    );
     return {
       players: catalog.players.map((candidate) => normalizeCatalogCandidate(candidate)),
-      managers: catalog.managers.map((candidate) =>
-        normalizeCatalogCandidate(candidate, clubStrength.get(candidate.club)),
-      ),
+      managers: [
+        ...featuredManagers,
+        ...normalizedManagers.filter(
+          (candidate) => !featuredNames.has(normalizedName(candidate.fullName)),
+        ),
+      ],
     };
   }
+}
+
+function normalizedName(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replaceAll(/\p{Diacritic}/gu, '')
+    .toLocaleLowerCase()
+    .replaceAll(/[^a-z0-9]/g, '');
+}
+
+function stableRecentForm(id: string, baseline: number): number[] {
+  let hash = 2166136261;
+  for (const character of id) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Array.from({ length: 5 }, (_, index) => {
+    const shift = ((hash >>> (index * 5)) & 31) - 15;
+    return Math.max(35, Math.min(97, Math.round(baseline + shift * 0.45)));
+  });
+}
+
+function recentFormRating(lastFive: number[]): number {
+  const values = lastFive.slice(-5);
+  const weights = [0.12, 0.16, 0.19, 0.23, 0.3].slice(-values.length);
+  const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+  return Math.round(
+    values.reduce((total, value, index) => total + value * weights[index]!, 0) / totalWeight,
+  );
 }
 
 /** Correct catalogues imported before the bounded market-rating model shipped. */
@@ -139,14 +179,21 @@ function normalizeCatalogCandidate(
       ),
     ),
   );
-  const delta = rating - candidate.currentFormRating;
+  const placeholderForm =
+    candidate.currentFormRating >= 98 ||
+    candidate.lastFive.length !== 5 ||
+    new Set(candidate.lastFive.map(Math.round)).size <= 1;
+  const delta = placeholderForm ? rating - candidate.currentFormRating : 0;
   const shifted = (score: number): number => Math.max(1, Math.min(99, Math.round(score + delta)));
+  const shiftedLastFive = candidate.lastFive.map(shifted);
+  const lastFive = placeholderForm ? stableRecentForm(candidate.id, rating) : shiftedLastFive;
+  const currentFormRating = recentFormRating(lastFive);
   const role = candidate.role;
   const tactics = candidate.tactics;
   return {
     ...candidate,
-    currentFormRating: rating,
-    lastFive: candidate.lastFive.map(shifted),
+    currentFormRating,
+    lastFive,
     role: {
       pace: shifted(role.pace),
       physical: shifted(role.physical),

@@ -86,6 +86,10 @@ function availableForSlot(
 const STAR_RANK_POWER = 6;
 const STAR_RANK_BOOST = 30;
 
+function isCuratedManager(candidate: CandidateSnapshot): boolean {
+  return candidate.kind === 'MANAGER' && candidate.id.startsWith('gavel-manager:');
+}
+
 /**
  * Builds a weighted random order without replacement. Higher-ranked strong
  * candidates receive a pronounced star preference, while the baseline weight
@@ -195,7 +199,11 @@ function candidatesForCycle(
         );
   const fallbackPick = diversify(fallbackPool, 1, random);
   const fallbackId = fallbackPick.selected[0]!.id;
-  const strongWithoutFallback = preferredStrong.filter((candidate) => candidate.id !== fallbackId);
+  const strongWithoutFallback = [...preferredStrong, ...available.filter(isCuratedManager)].filter(
+    (candidate, index, candidates) =>
+      candidate.id !== fallbackId &&
+      candidates.findIndex(({ id }) => id === candidate.id) === index,
+  );
   const fillers = available
     .filter(
       (candidate) =>
@@ -211,7 +219,18 @@ function candidatesForCycle(
     strongWithoutFallback.length >= count - 1
       ? strongWithoutFallback
       : [...strongWithoutFallback, ...fillers.slice(0, count - 1 - strongWithoutFallback.length)];
-  const strongPick = diversify(strongPool, count - 1, fallbackPick.random, true);
+  let strongPick: { selected: CandidateSnapshot[]; random: SeededRandom };
+  if (slot.position === 'MANAGER') {
+    const featured = shuffle(strongPool.filter(isCuratedManager), fallbackPick.random);
+    const selected = featured.values.slice(0, count - 1);
+    const remaining = strongPool.filter(
+      (candidate) => !selected.some(({ id }) => id === candidate.id),
+    );
+    const fill = diversify(remaining, count - 1 - selected.length, featured.random, true);
+    strongPick = { selected: [...selected, ...fill.selected], random: fill.random };
+  } else {
+    strongPick = diversify(strongPool, count - 1, fallbackPick.random, true);
+  }
   let tiered: Array<{ candidate: CandidateSnapshot; tier: CandidateTier }> = [
     ...strongPick.selected.map((candidate) => ({ candidate, tier: 'STRONG' as const })),
     ...fallbackPick.selected.map((candidate) => ({ candidate, tier: 'FALLBACK' as const })),

@@ -53,6 +53,7 @@ export interface DebugRoomState {
   squads: Array<{ memberId: string; cycleId: string }>;
   currentLot: null | {
     sequence: number;
+    candidate: { kind: 'PLAYER' | 'MANAGER'; fullName: string };
     currentBidEUR: number | null;
     currentLeaderId: string | null;
     eligibleMemberIds: string[];
@@ -458,6 +459,7 @@ export async function playToResults(
   roomCode: string,
   options: {
     onCheckpoint?: (number: number) => Promise<void> | void;
+    onLot?: (room: DebugRoomState, number: number) => Promise<void> | void;
     maxLots?: number;
   } = {},
 ): Promise<{ lots: number; checkpoints: number }> {
@@ -479,6 +481,7 @@ export async function playToResults(
       await continueCheckpoint(host, directors, roomCode);
       continue;
     }
+    await options.onLot?.(state, lots + 1);
     await settleOpenLot(directors, roomCode, lots);
     lots += 1;
   }

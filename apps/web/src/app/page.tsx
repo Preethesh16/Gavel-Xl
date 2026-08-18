@@ -29,7 +29,8 @@ const AUCTION_PHASES = [
 export default function Home() {
   const game = useGavelRoom();
   const [guideOpen, setGuideOpen] = useState(false);
-  const sound = useSound(game.room?.settings.soundEnabled ?? true, game.moment);
+  const backgroundActive = !game.room || game.room.phase === 'LOBBY';
+  const sound = useSound(game.room?.settings.soundEnabled ?? true, game.moment, backgroundActive);
   const lastRoom = useRef<string | null>(null);
   const suggestedCode = useMemo(() => {
     if (typeof window === 'undefined') return undefined;

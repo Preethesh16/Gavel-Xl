@@ -47,7 +47,7 @@ describe('durable player catalog', () => {
       ) as unknown as typeof player.role,
       dataSource: 'Transfermarkt-derived open catalogue; legacy import',
     }));
-    const manager = (await source.getManagers())[0]!;
+    const manager = (await source.getManagers()).find(({ id }) => id.startsWith('dev-manager'))!;
     await persistence.replaceCatalog({
       source: 'legacy-catalog',
       players,
@@ -68,7 +68,37 @@ describe('durable player catalog', () => {
     ]);
     expect(normalizedPlayers.every(({ currentFormRating }) => currentFormRating < 99)).toBe(true);
     expect(new Set(normalizedPlayers[0]!.lastFive)).not.toEqual(new Set([99]));
-    expect(normalizedManagers[0]!.currentFormRating).toBeGreaterThan(70);
+    expect(normalizedManagers.find(({ id }) => id === manager.id)?.currentFormRating).not.toBe(70);
+    expect(
+      new Set(normalizedPlayers.map(({ currentFormRating }) => currentFormRating)).size,
+    ).toBeGreaterThan(1);
+  });
+
+  it('keeps the featured manager tier pictured and mixes it with lower-rated options', async () => {
+    const persistence = new InMemoryPersistence();
+    const source = new DevelopmentSnapshotProvider(32);
+    const [players, managers] = await Promise.all([
+      source.getActivePlayers(),
+      source.getManagers(),
+    ]);
+    await persistence.replaceCatalog({ source: 'manager-mix', players, managers });
+
+    const stored = await new CatalogProvider(persistence).getManagers();
+    const featured = [
+      'José Mourinho',
+      'Hansi Flick',
+      'Pep Guardiola',
+      'Jürgen Klopp',
+      'Xabi Alonso',
+      'Carlo Ancelotti',
+      'Lionel Scaloni',
+    ].map((name) => stored.find((manager) => manager.fullName === name));
+
+    expect(featured.every(Boolean)).toBe(true);
+    expect(featured.every((manager) => Boolean(manager?.imageUrl))).toBe(true);
+    expect(featured.every((manager) => (manager?.currentFormRating ?? 0) > 70)).toBe(true);
+    expect(new Set(featured.map((manager) => manager?.currentFormRating)).size).toBeGreaterThan(3);
+    expect(stored.some(({ currentFormRating }) => currentFormRating < 80)).toBe(true);
   });
 
   it.each([2, 3, 4, 5, 6, 7, 8])(
@@ -125,6 +155,24 @@ describe('durable player catalog', () => {
               candidate.positions[0] === cycle.position,
           ),
         ).toBe(true);
+      }
+      if (participantCount === 8) {
+        const managerCycle = pool.cycles.find(({ position }) => position === 'MANAGER')!;
+        const auctionManagers = managerCycle.candidates
+          .filter(({ tier }) => tier === 'STRONG')
+          .map(({ candidate }) => candidate.fullName);
+        expect(auctionManagers).toEqual(
+          expect.arrayContaining([
+            'José Mourinho',
+            'Hansi Flick',
+            'Pep Guardiola',
+            'Jürgen Klopp',
+            'Xabi Alonso',
+            'Carlo Ancelotti',
+            'Lionel Scaloni',
+          ]),
+        );
+        expect(managerCycle.candidates.filter(({ tier }) => tier === 'FALLBACK')).toHaveLength(1);
       }
     },
   );

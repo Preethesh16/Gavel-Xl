@@ -96,7 +96,11 @@ function announce(moment: AuctionMoment): void {
   window.speechSynthesis.speak(utterance);
 }
 
-export function useSound(roomDefault: boolean, moment: AuctionMoment | null) {
+export function useSound(
+  roomDefault: boolean,
+  moment: AuctionMoment | null,
+  backgroundActive: boolean,
+) {
   const [enabled, setEnabled] = useState(roomDefault);
   const contextRef = useRef<AudioContext | null>(null);
   const backgroundRef = useRef<HTMLAudioElement | null>(null);
@@ -126,8 +130,9 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null) {
   useEffect(() => {
     const background = backgroundRef.current;
     if (!background || process.env.NEXT_PUBLIC_E2E === 'true') return;
-    if (!enabled) {
+    if (!enabled || !backgroundActive) {
       background.pause();
+      background.currentTime = 0;
       return;
     }
     const start = () => void background.play().catch(() => undefined);
@@ -138,7 +143,7 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null) {
       window.removeEventListener('pointerdown', start);
       window.removeEventListener('keydown', start);
     };
-  }, [enabled]);
+  }, [backgroundActive, enabled]);
 
   const play = useCallback(
     (cue: Cue) => {
@@ -193,7 +198,7 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null) {
           backgroundRef.current?.pause();
           soldRef.current?.pause();
           if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        } else {
+        } else if (backgroundActive) {
           void backgroundRef.current?.play().catch(() => undefined);
         }
       } catch {
@@ -201,7 +206,7 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null) {
       }
       return next;
     });
-  }, []);
+  }, [backgroundActive]);
 
   return { enabled, toggle, play };
 }
