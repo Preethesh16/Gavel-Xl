@@ -1,6 +1,8 @@
 import type { RoomService } from './room-service.js';
+import { DomainError } from './errors.js';
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
+const ADVANCE_RETRY_MS = 1_000;
 
 interface ScheduledWake {
   wakeAt: number;
@@ -79,8 +81,19 @@ export class RoomScheduler {
           outcome.nextWakeAt === null ? null : { wakeAt: outcome.nextWakeAt },
         );
       }
-    } catch {
-      // A room can disappear or finish between scheduling and execution.
+    } catch (error) {
+      if (error instanceof DomainError && error.code === 'ROOM_NOT_FOUND') return;
+      if (this.#closed || this.#timers.has(roomCode)) return;
+      // Persistence, Redis, and provider failures can be transient. Dropping a
+      // failed wake permanently leaves the public clock at 0.0, so retain the
+      // authoritative deadline and retry until the room advances or another
+      // command installs a newer timer.
+      const timer = setTimeout(() => {
+        this.#timers.delete(roomCode);
+        void this.#advance(roomCode, expectedWakeAt);
+      }, ADVANCE_RETRY_MS);
+      timer.unref();
+      this.#timers.set(roomCode, timer);
     }
   }
 }

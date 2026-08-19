@@ -87,7 +87,7 @@ describe('formation presentation data', () => {
     const entry: SquadEntryView = {
       id: 'entry-1',
       memberId: member.id,
-      slotId: 'LCB',
+      slotId: 'cb-1',
       cycleId: 'cb-cycle-a',
       candidate,
       purchasePriceEUR: 50_000_000,
@@ -97,7 +97,39 @@ describe('formation presentation data', () => {
     };
     const lineup = buildLineup('4-2-1-3', member, [entry]);
     expect(lineup.filter((slot) => slot.entry?.id === entry.id)).toHaveLength(1);
-    expect(lineup.find((slot) => slot.slot.id === 'LCB')?.entry?.id).toBe(entry.id);
+    expect(lineup.find((slot) => slot.slot.id === 'cb-1')?.entry?.id).toBe(entry.id);
+  });
+
+  it('maps every completed squad entry to its exact pitch slot without fake empty positions', () => {
+    for (const [formation, slots] of Object.entries(FORMATION_PITCHES)) {
+      const entries = slots.map((pitchSlot, index): SquadEntryView => ({
+        id: `${formation}-entry-${index}`,
+        memberId: member.id,
+        slotId: pitchSlot.id,
+        cycleId: `${pitchSlot.id}-cycle`,
+        candidate: {
+          ...candidate,
+          id: `${formation}-candidate-${index}`,
+          kind: 'PLAYER',
+          fullName: `${pitchSlot.label} Player`,
+          commonName: `${pitchSlot.label} Player`,
+          positions: [pitchSlot.position],
+          preferredPosition: pitchSlot.position,
+        },
+        purchasePriceEUR: 10_000_000,
+        marketValueEUR: 20_000_000,
+        acquisition: 'AUCTION',
+        acquiredAt: index,
+      }));
+
+      const lineup = buildLineup(formation, { ...member, filledSlots: 12 }, entries);
+      expect(lineup, formation).toHaveLength(11);
+      expect(
+        lineup.every(({ entry }) => entry !== null),
+        formation,
+      ).toBe(true);
+      expect(new Set(lineup.map(({ entry }) => entry?.id)).size, formation).toBe(11);
+    }
   });
 });
 

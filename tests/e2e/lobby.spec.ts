@@ -107,3 +107,27 @@ test('fresh room creation waits for a dropped connection instead of showing a re
     await director.context.close();
   }
 });
+
+test('room actions wait for player identity to resume after a disconnect', async ({ browser }) => {
+  const host = await newDirector(browser, 'ComebackHost');
+  try {
+    const roomCode = await createRoom(host.page, host.name);
+    await host.context.setOffline(true);
+    await expect(host.page.getByTestId('connection-status')).not.toContainText('LIVE');
+
+    const formationChange = host.page.getByTestId('settings-formation').selectOption('4-4-2');
+    await host.page.waitForTimeout(250);
+    await host.context.setOffline(false);
+    await formationChange;
+
+    await expect(host.page.getByTestId('connection-status')).toContainText('LIVE', {
+      timeout: 25_000,
+    });
+    await expect(host.page.getByTestId('settings-formation')).toHaveValue('4-4-2');
+    await expect(host.page.getByTestId('error-toast')).toHaveCount(0);
+    await expect(host.page.getByTestId('lobby-room-code')).toHaveText(roomCode);
+  } finally {
+    await host.context.setOffline(false).catch(() => undefined);
+    await host.context.close();
+  }
+});

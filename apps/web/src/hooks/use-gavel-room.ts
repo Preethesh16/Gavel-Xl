@@ -172,6 +172,10 @@ export function useGavelRoom(): UseGavelRoomValue {
   const socketRef = useRef<Socket | null>(null);
   const sessionRef = useRef<StoredSession | null>(null);
   const roomRef = useRef<RoomView | null>(null);
+  // A Socket.IO connection is not yet an authenticated room connection. On a
+  // reconnect the transport becomes ready before room:resume has rebound the
+  // member identity, so room actions must wait for that handshake as well.
+  const identityReadyRef = useRef<Promise<boolean>>(Promise.resolve(true));
   const momentId = useRef(0);
   const serverUrl = useMemo(runtimeServerUrl, []);
 
@@ -200,7 +204,9 @@ export function useGavelRoom(): UseGavelRoomValue {
   const waitForConnection = useCallback((timeout = 20_000): Promise<Socket | null> => {
     const socket = socketRef.current;
     if (!socket) return Promise.resolve(null);
-    if (socket.connected) return Promise.resolve(socket);
+    const authenticatedSocket = async (): Promise<Socket | null> =>
+      (await identityReadyRef.current) && socket.connected ? socket : null;
+    if (socket.connected) return authenticatedSocket();
     setConnection(sessionRef.current || roomRef.current ? 'reconnecting' : 'connecting');
     return new Promise((resolve) => {
       let settled = false;
@@ -209,7 +215,11 @@ export function useGavelRoom(): UseGavelRoomValue {
         settled = true;
         window.clearTimeout(timer);
         socket.off('connect', connected);
-        resolve(connectedSocket);
+        if (connectedSocket === null) {
+          resolve(null);
+          return;
+        }
+        void authenticatedSocket().then(resolve);
       };
       const connected = () => finish(socket);
       const timer = window.setTimeout(() => finish(socket.connected ? socket : null), timeout);
@@ -272,41 +282,52 @@ export function useGavelRoom(): UseGavelRoomValue {
     sessionRef.current = loadSession();
     if (!sessionRef.current) setInitialising(false);
 
-    const resume = () => {
+    const resume = (): Promise<boolean> => {
       const session = sessionRef.current;
       if (!session) {
         setInitialising(false);
-        return;
+        setConnection('online');
+        return Promise.resolve(true);
       }
-      socket
-        .timeout(12_000)
-        .emit(
-          'room:resume',
-          { sessionToken: session.sessionToken },
-          (resumeError: Error | null, ack: Ack<SessionPayload> | undefined) => {
-            setInitialising(false);
-            if (resumeError || !ack?.ok || !ack.data) {
-              if (ack?.error?.code === 'SESSION_INVALID' || ack?.error?.code === 'ROOM_NOT_FOUND') {
-                clearSession();
-                sessionRef.current = null;
-                setMemberId(null);
-                setRoom(null);
-              } else {
-                setNotice(
-                  'Your room could not be restored yet. You can retry when the connection returns.',
-                );
+      setConnection('reconnecting');
+      return new Promise((resolve) => {
+        socket
+          .timeout(12_000)
+          .emit(
+            'room:resume',
+            { sessionToken: session.sessionToken },
+            (resumeError: Error | null, ack: Ack<SessionPayload> | undefined) => {
+              setInitialising(false);
+              if (resumeError || !ack?.ok || !ack.data) {
+                if (
+                  ack?.error?.code === 'SESSION_INVALID' ||
+                  ack?.error?.code === 'ROOM_NOT_FOUND'
+                ) {
+                  clearSession();
+                  sessionRef.current = null;
+                  setMemberId(null);
+                  setRoom(null);
+                  setConnection('online');
+                } else {
+                  setConnection('offline');
+                  setNotice(
+                    'Your room could not be restored yet. You can retry when the connection returns.',
+                  );
+                }
+                resolve(false);
+                return;
               }
-              return;
-            }
-            acceptSession(ack.data);
-          },
-        );
+              acceptSession(ack.data);
+              setConnection('online');
+              resolve(true);
+            },
+          );
+      });
     };
 
     socket.on('connect', () => {
-      setConnection('online');
       setError(null);
-      resume();
+      identityReadyRef.current = resume();
     });
     const pendingConnectionState = (): ConnectionState =>
       sessionRef.current || roomRef.current ? 'reconnecting' : 'connecting';

@@ -36,47 +36,60 @@ function slot(
   return { id, label, position, x, y };
 }
 
+// Squad entries use the engine's canonical slot ids (`cb-1`, `cb-2`, etc.),
+// not the visual coordinate names (`LCB`, `RCB`). Keeping those identities
+// aligned prevents a complete squad from being greedily remapped into the
+// wrong positions and leaving a fake EMPTY slot on the results pitch.
+function canonicalSlots(slots: PitchSlot[]): PitchSlot[] {
+  const counts = new Map<PitchSlot['position'], number>();
+  return slots.map((pitchSlot) => {
+    const index = (counts.get(pitchSlot.position) ?? 0) + 1;
+    counts.set(pitchSlot.position, index);
+    return { ...pitchSlot, id: `${pitchSlot.position.toLowerCase()}-${index}` };
+  });
+}
+
 export const FORMATION_PITCHES: Record<string, PitchSlot[]> = {
-  '4-2-1-3': [
-    slot('GK', 'GK', 'GK'),
-    slot('LB', 'LB', 'LB'),
-    slot('LCB', 'CB', 'CB'),
-    slot('RCB', 'CB', 'CB'),
-    slot('RB', 'RB', 'RB'),
-    slot('LDM', 'CM/DM', 'CM'),
-    slot('RDM', 'CM/DM', 'DM'),
-    slot('AM', 'AM', 'AM'),
-    slot('LW', 'LW', 'LW'),
-    slot('ST', 'ST', 'ST'),
-    slot('RW', 'RW', 'RW'),
-  ],
-  '4-3-3': [
-    slot('GK', 'GK', 'GK'),
-    slot('LB', 'LB', 'LB'),
-    slot('LCB', 'CB', 'CB'),
-    slot('RCB', 'CB', 'CB'),
-    slot('RB', 'RB', 'RB'),
-    slot('LCM', 'CM', 'CM'),
-    slot('DM', 'DM', 'DM'),
-    slot('RCM', 'CM', 'CM'),
-    slot('LW', 'LW', 'LW'),
-    slot('ST', 'ST', 'ST'),
-    slot('RW', 'RW', 'RW'),
-  ],
-  '4-2-3-1': [
+  '4-2-1-3': canonicalSlots([
     slot('GK', 'GK', 'GK'),
     slot('LB', 'LB', 'LB'),
     slot('LCB', 'CB', 'CB'),
     slot('RCB', 'CB', 'CB'),
     slot('RB', 'RB', 'RB'),
     slot('LDM', 'DM', 'DM'),
-    slot('RDM', 'CM', 'CM'),
+    slot('RDM', 'DM', 'DM'),
+    slot('AM', 'AM', 'AM'),
+    slot('LW', 'LW', 'LW'),
+    slot('ST', 'ST', 'ST'),
+    slot('RW', 'RW', 'RW'),
+  ]),
+  '4-3-3': canonicalSlots([
+    slot('GK', 'GK', 'GK'),
+    slot('LB', 'LB', 'LB'),
+    slot('LCB', 'CB', 'CB'),
+    slot('RCB', 'CB', 'CB'),
+    slot('RB', 'RB', 'RB'),
+    slot('LCM', 'CM', 'CM'),
+    slot('DM', 'CM', 'CM'),
+    slot('RCM', 'CM', 'CM'),
+    slot('LW', 'LW', 'LW'),
+    slot('ST', 'ST', 'ST'),
+    slot('RW', 'RW', 'RW'),
+  ]),
+  '4-2-3-1': canonicalSlots([
+    slot('GK', 'GK', 'GK'),
+    slot('LB', 'LB', 'LB'),
+    slot('LCB', 'CB', 'CB'),
+    slot('RCB', 'CB', 'CB'),
+    slot('RB', 'RB', 'RB'),
+    slot('LDM', 'DM', 'DM'),
+    slot('RDM', 'DM', 'DM'),
     slot('LAM', 'AM', 'AM'),
     slot('AM', 'AM', 'AM'),
     slot('RAM', 'AM', 'AM'),
     slot('ST', 'ST', 'ST'),
-  ],
-  '4-4-2': [
+  ]),
+  '4-4-2': canonicalSlots([
     slot('GK', 'GK', 'GK'),
     slot('LB', 'LB', 'LB'),
     slot('LCB', 'CB', 'CB'),
@@ -88,46 +101,46 @@ export const FORMATION_PITCHES: Record<string, PitchSlot[]> = {
     slot('RW', 'RM', 'RW'),
     slot('LS', 'ST', 'ST'),
     slot('RS', 'ST', 'ST'),
-  ],
-  '3-4-2-1': [
+  ]),
+  '3-4-2-1': canonicalSlots([
     slot('GK', 'GK', 'GK'),
     slot('LCB', 'CB', 'CB'),
     slot('CB', 'CB', 'CB'),
     slot('RCB', 'CB', 'CB'),
-    slot('LWB', 'LWB', 'LWB'),
+    slot('LWB', 'LWB', 'LB'),
     slot('LCM', 'CM', 'CM'),
     slot('RCM', 'CM', 'CM'),
-    slot('RWB', 'RWB', 'RWB'),
+    slot('RWB', 'RWB', 'RB'),
     slot('LAM', 'AM', 'AM'),
     slot('RAM', 'AM', 'AM'),
     slot('ST', 'ST', 'ST'),
-  ],
-  '3-5-2': [
+  ]),
+  '3-5-2': canonicalSlots([
     slot('GK', 'GK', 'GK'),
     slot('LCB', 'CB', 'CB'),
     slot('CB', 'CB', 'CB'),
     slot('RCB', 'CB', 'CB'),
-    slot('LWB', 'LWB', 'LWB'),
+    slot('LWB', 'LWB', 'LB'),
     slot('LCM', 'CM', 'CM'),
     slot('DM', 'DM', 'DM'),
     slot('RCM', 'CM', 'CM'),
-    slot('RWB', 'RWB', 'RWB'),
+    slot('RWB', 'RWB', 'RB'),
     slot('LS', 'ST', 'ST'),
     slot('RS', 'ST', 'ST'),
-  ],
-  '5-2-1-2': [
+  ]),
+  '5-2-1-2': canonicalSlots([
     slot('GK', 'GK', 'GK'),
-    slot('LWB', 'LWB', 'LWB'),
+    slot('LWB', 'LWB', 'LB'),
     slot('LCB', 'CB', 'CB'),
     slot('CB', 'CB', 'CB'),
     slot('RCB', 'CB', 'CB'),
-    slot('RWB', 'RWB', 'RWB'),
+    slot('RWB', 'RWB', 'RB'),
     slot('LCM', 'CM', 'CM'),
     slot('RCM', 'CM', 'CM'),
     slot('AM', 'AM', 'AM'),
     slot('LS', 'ST', 'ST'),
     slot('RS', 'ST', 'ST'),
-  ],
+  ]),
 };
 
 export interface LineupEntry {
