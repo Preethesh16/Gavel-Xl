@@ -390,6 +390,34 @@ describe('authoritative realtime server', () => {
     expect((await fetch(`${url}/health`)).status).toBe(200);
   });
 
+  it('keeps room creation available when a managed cache is temporarily unreachable', async () => {
+    const server = await buildServer({
+      engine: new TestEngine(),
+      dataProviders: [new DevelopmentSnapshotProvider()],
+      valuationProvider: new DevelopmentValuationProvider(),
+      config: {
+        NODE_ENV: 'test',
+        HOST: '127.0.0.1',
+        PORT: 0,
+        WEB_ORIGIN: 'http://localhost:3000',
+        SESSION_SECRET: 'adapter-fallback-secret-that-is-at-least-32-bytes',
+        REDIS_URL: 'redis://127.0.0.1:1',
+      },
+    });
+    servers.push(server);
+    const url = await server.start({ host: '127.0.0.1', port: 0 });
+    const health = (await (await fetch(`${url}/health`)).json()) as {
+      storageMode: string;
+    };
+    expect(health.storageMode).toBe('in-memory-fallback');
+
+    const host = await connect(url);
+    const created = requireData(
+      await emitAck<SessionPayload>(host, 'room:create', { name: 'Fallback Host' }),
+    );
+    expect(created.room.code).toHaveLength(6);
+  });
+
   it('restricts hidden debug state to the current host session', async () => {
     const { url } = await fixture();
     const { hostSession, guestSession } = await createTwoPlayerRoom(url);

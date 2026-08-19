@@ -72,8 +72,10 @@ pnpm --filter @gavel-xi/server db:migrate
 ```
 
 The in-memory development path is deliberately available when both URLs are blank, so a new
-contributor can still play and run the browser suite without Docker. A configured adapter fails fast
-instead of silently falling back. The server CLI loads the repository-root `.env`; an explicitly
+contributor can still play and run the browser suite without Docker. If managed production adapters
+are temporarily unreachable, the health endpoint reports `in-memory-fallback` and new rooms remain
+available for that process; the next healthy deployment returns to durable mode. Database migrations
+remain an explicit deployment step. The server CLI loads the repository-root `.env`; an explicitly
 exported process variable takes precedence.
 
 ## Environment

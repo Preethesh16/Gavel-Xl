@@ -200,29 +200,47 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
       ? { ...parsedConfig, SESSION_SECRET: randomBytes(32).toString('hex') }
       : parsedConfig;
   const now = options.now ?? Date.now;
-  const persistence: PersistenceAdapter =
+  let persistence: PersistenceAdapter =
     options.persistence ??
     (config.DATABASE_URL === undefined
       ? new InMemoryPersistence()
       : new PrismaPersistence({ connectionString: config.DATABASE_URL }));
-  const cache: CacheAdapter =
+  let cache: CacheAdapter =
     options.cache ??
     (config.REDIS_URL === undefined
       ? new InMemoryCache()
       : new RedisCacheAdapter({ url: config.REDIS_URL }));
 
+  let adapterFallbackReason: string | null = null;
   try {
     await persistence.connect?.();
     await cache.connect?.();
     if (config.FOOTBALL_DATA_PROVIDER === 'catalog') await seedCatalogIfEmpty(persistence);
   } catch (error) {
     await Promise.allSettled([cache.close?.(), persistence.close?.()]);
-    throw new Error('Configured persistence or cache adapter failed to initialize', {
-      cause: error,
-    });
+    if (options.persistence !== undefined || options.cache !== undefined) {
+      throw new Error('Configured persistence or cache adapter failed to initialize', {
+        cause: error,
+      });
+    }
+    // Availability beats durability when a managed Render dependency is
+    // temporarily unreachable. Rooms created in this degraded mode are
+    // process-local, and the next healthy deployment returns to durable mode.
+    persistence = new InMemoryPersistence();
+    cache = new InMemoryCache();
+    await persistence.connect?.();
+    await cache.connect?.();
+    if (config.FOOTBALL_DATA_PROVIDER === 'catalog') await seedCatalogIfEmpty(persistence);
+    adapterFallbackReason = error instanceof Error ? error.message : 'unknown adapter failure';
   }
 
   const app = Fastify({ logger: options.logger ?? false });
+  if (adapterFallbackReason !== null) {
+    app.log.error(
+      { reason: adapterFallbackReason },
+      'Durable adapters unavailable; serving rooms with in-memory fallback',
+    );
+  }
   await app.register(cors, {
     origin: origins(config),
     credentials: true,
@@ -241,7 +259,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
     pingTimeout: config.PRESENCE_TIMEOUT_MS,
   });
   let closeSocketAdapter = async (): Promise<void> => undefined;
-  if (config.REDIS_URL !== undefined) {
+  let socketAdapterFallbackReason: string | null = null;
+  if (config.REDIS_URL !== undefined && adapterFallbackReason === null) {
     const pubClient = new Redis(config.REDIS_URL, {
       lazyConnect: true,
       enableOfflineQueue: false,
@@ -254,8 +273,12 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
     } catch (error) {
       pubClient.disconnect(false);
       subClient.disconnect(false);
-      await Promise.allSettled([cache.close?.(), persistence.close?.()]);
-      throw new Error('Configured Socket.IO Redis adapter failed to initialize', { cause: error });
+      socketAdapterFallbackReason =
+        error instanceof Error ? error.message : 'unknown Socket.IO adapter failure';
+      app.log.error(
+        { reason: socketAdapterFallbackReason },
+        'Socket.IO Redis adapter unavailable; serving realtime events from this instance',
+      );
     }
     let socketAdapterClosed = false;
     closeSocketAdapter = async () => {
@@ -326,6 +349,8 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Gav
     return {
       status: 'ok',
       service: 'gavel-xi-server',
+      storageMode: adapterFallbackReason === null ? 'configured' : 'in-memory-fallback',
+      realtimeMode: socketAdapterFallbackReason === null ? 'configured' : 'single-instance',
       cache: await cache.health(),
       footballDataProvider: config.FOOTBALL_DATA_PROVIDER,
       ...(catalog === null
