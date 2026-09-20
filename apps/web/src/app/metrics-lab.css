@@ -1,0 +1,630 @@
+/* An animated comparison lab, scoped to the 100-metric explorer. */
+.metric-lab {
+  --lab-ink: #031631;
+  --lab-cream: #fff4dc;
+}
+.metric-lab__hero {
+  display: grid;
+  grid-template-columns: 1fr 0.85fr;
+  align-items: center;
+  gap: 60px;
+  margin-bottom: 38px;
+}
+.metric-lab__hero h2 {
+  font: 900 clamp(42px, 5.5vw, 76px)/0.89 var(--display);
+  letter-spacing: -0.055em;
+  margin: 22px 0;
+}
+.metric-lab__hero h2 em {
+  font-style: normal;
+  color: #f1bf00;
+}
+.metric-lab__hero > div > p:last-of-type {
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #aec1d9;
+}
+.metric-lab__hero .eyebrow {
+  font-size: 9px;
+  line-height: 1.6;
+}
+.metric-lab__total {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 28px;
+}
+.metric-lab__total > strong {
+  font: 900 64px/1 var(--display);
+  letter-spacing: -0.07em;
+}
+.metric-lab__total > span {
+  font-size: 8px;
+  line-height: 1.8;
+  color: #a9bfd9;
+}
+.metric-lab__total button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 12px;
+  margin-left: auto;
+  border: 1px solid #fff4dc30;
+  background: #fff4dc08;
+  color: #fff4dc;
+  font-size: 8px;
+  font-weight: 800;
+}
+.metric-lab__total svg {
+  width: 13px;
+}
+.metric-map {
+  position: relative;
+  isolation: isolate;
+  padding: 22px;
+  border: 1px solid #fff4dc25;
+  background: #031631;
+  border-radius: 22px 3px 22px 3px;
+  box-shadow: 12px 12px 0 #04132966;
+}
+.metric-map > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+}
+.metric-map > header b {
+  color: #f1bf00;
+  font-weight: 500;
+}
+.metric-map__grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 5px;
+  perspective: 650px;
+}
+.metric-map__grid button {
+  aspect-ratio: 1;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--cell-color) 65%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--cell-color) 13%, #031631);
+  color: var(--cell-color);
+  box-shadow: inset 0 -4px 0 #0002;
+  transition:
+    transform 0.18s ease-out,
+    background 0.18s;
+  animation: lab-cell-arrive 0.65s var(--cell-delay) both;
+}
+.metric-map__grid span {
+  font: 800 9px var(--display);
+}
+.metric-map__grid button:not(:disabled):hover,
+.metric-map__grid button.is-selected {
+  transform: translateY(-4px) scale(1.12);
+  background: var(--cell-color);
+  color: #031631;
+  z-index: 2;
+}
+.metric-map__grid button:disabled {
+  opacity: 0.16;
+  cursor: default;
+  animation: none;
+}
+.metric-map > footer {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.metric-map > footer > span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: #c2d1e2;
+  font-size: 9px;
+}
+.metric-map > footer i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+.metric-map > footer b {
+  color: #7e9bbd;
+  font-weight: 500;
+  margin-left: 3px;
+}
+.metric-lab .metric-toolbar {
+  gap: 12px;
+  grid-template-columns: 1fr 270px;
+}
+.metric-lab .metric-search,
+.metric-lab .metric-filter {
+  height: 52px;
+  background: #082448;
+  border-color: #b2cbed30;
+  border-radius: 6px;
+}
+.metric-lab .metric-search input {
+  font-size: 12px;
+  color: #fff4dc;
+  min-width: 0;
+}
+.metric-lab .metric-search input::placeholder {
+  color: #a1b7d0;
+}
+.metric-lab .metric-filter select {
+  background: transparent;
+  color: #fff4dc;
+  font-size: 10px;
+}
+.metric-lab .metric-filter select option {
+  color: #fff4dc;
+  background: #082448;
+}
+.metric-lab .metric-filter > span {
+  color: #91adcb;
+  font-size: 8px;
+}
+.metric-lab__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 22px 0;
+  color: #a1bad6;
+  font-size: 9px;
+}
+.metric-lab__status > span {
+  color: #f1bf00;
+  font-weight: 800;
+}
+.metric-lab__status p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.metric-lab__status i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f1bf00;
+}
+.metric-lab__cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.metric-lab-card {
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #9fbadd30;
+  border-radius: 16px;
+  background: #061c3d;
+  scroll-margin-top: 150px;
+  box-shadow: inset 0 1px 0 #fff4dc08;
+}
+.metric-lab-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 40%, #17396070, transparent 70%);
+}
+.metric-lab-card.is-focused {
+  border-color: #f1bf00;
+  box-shadow: 0 0 0 3px #f1bf001c;
+}
+.metric-lab-card > header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 22px;
+  border-bottom: 1px solid #a9bfd914;
+}
+.metric-lab-card__index {
+  flex-shrink: 0;
+  width: 39px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  background: #fff4dc;
+  color: #031631;
+  font: 900 14px var(--display);
+  clip-path: polygon(0 0, 100% 0, 100% 76%, 76% 100%, 0 100%);
+}
+.metric-lab-card > header > div {
+  min-width: 0;
+}
+.metric-lab-card header p {
+  font-size: 8px;
+  color: #99b4d2;
+  margin: 0 0 5px;
+  letter-spacing: 0.08em;
+}
+.metric-lab-card h3 {
+  margin: 0;
+  font: 800 clamp(15px, 1.7vw, 22px)/1.15 var(--display);
+}
+.metric-lab-card__seal {
+  margin-left: auto;
+  align-self: flex-start;
+  color: #f1bf00;
+  font-size: 22px;
+}
+.metric-dial-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--competitors), minmax(0, 1fr));
+  gap: 20px 10px;
+  padding: 20px;
+}
+.metric-contender {
+  text-align: center;
+  min-width: 0;
+  padding-bottom: 6px;
+}
+.metric-dial {
+  position: relative;
+  width: min(100%, 160px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  color: var(--score-color);
+}
+.metric-dial svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform: rotate(-90deg);
+}
+.metric-dial circle {
+  fill: none;
+}
+.metric-dial__halo {
+  stroke: var(--score-color);
+  stroke-opacity: 0.14;
+  stroke-width: 1;
+  stroke-dasharray: 3 8;
+}
+.metric-dial__track {
+  stroke: #fff4dc0d;
+  stroke-width: 7;
+}
+.metric-dial__score {
+  stroke: var(--score-color);
+  stroke-width: 7;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--score-color) 25%, transparent));
+}
+.metric-dial__ticks {
+  stroke: var(--score-color);
+  stroke-opacity: 0.35;
+  stroke-width: 2;
+  stroke-dasharray: 0.3 4.7;
+}
+.metric-dial__number {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+.metric-dial__number > small {
+  display: block;
+  color: #9eb6d2;
+  font-size: 7px;
+  letter-spacing: 0.06em;
+  margin-top: 8px;
+}
+.score-number {
+  display: inline-flex;
+  align-items: baseline;
+  font: 900 clamp(23px, 3vw, 40px)/1 var(--display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.045em;
+}
+.score-reel {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  line-height: 1;
+}
+.score-reel__strip {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(calc(var(--digit) * -1em));
+}
+.score-reel__strip > span {
+  display: block;
+  height: 1em;
+  flex: 0 0 1em;
+  line-height: 1;
+}
+.score-point {
+  padding-inline: 0.01em;
+}
+.metric-dial__crown {
+  position: absolute;
+  top: 0;
+  right: 9%;
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: var(--score-color);
+  color: #031631;
+  border: 4px solid #061c3d;
+  font-size: 14px;
+}
+.metric-contender > strong {
+  display: block;
+  color: #fff4dc;
+  font-size: 13px;
+  margin-top: 9px;
+  overflow-wrap: anywhere;
+}
+.metric-contender > span {
+  display: block;
+  margin-top: 6px;
+  color: #8ea9c9;
+  font-size: 7px;
+  letter-spacing: 0.07em;
+}
+.metric-contender.is-leading > span {
+  color: var(--score-color);
+}
+.metric-lab-card > footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid #a9bfd914;
+  background: #03132a;
+}
+.metric-lab-card footer > span {
+  font-size: 7px;
+  color: #8ea9c9;
+}
+.metric-lab-card footer > b {
+  font-size: 10px;
+  color: #fff4dc;
+  overflow-wrap: anywhere;
+}
+.metric-lab-card footer > em {
+  margin-left: auto;
+  white-space: nowrap;
+  color: #f1bf00;
+  background: #f1bf0010;
+  padding: 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+}
+.metric-lab-card[data-seen='true'] .metric-contender {
+  animation: lab-score-arrive 0.65s var(--score-delay) both;
+}
+.metric-lab-card[data-seen='true'] .metric-dial__score {
+  animation: lab-orbit-charge 1.2s var(--score-delay) both;
+}
+.metric-lab-card[data-seen='true'] .metric-dial__ticks {
+  transform-origin: center;
+  animation: lab-ticks-lock 1.3s var(--score-delay) both;
+}
+.metric-lab-card[data-seen='true'] .score-reel__strip {
+  animation: lab-digit-lock 1.15s calc(var(--score-delay) + var(--digit-delay)) both;
+}
+.metric-lab-card[data-motion='idle'] * {
+  animation-play-state: paused !important;
+}
+.metric-lab__reset {
+  color: #001d4a;
+  background: #f1bf00;
+  padding: 14px 18px;
+  margin-top: 20px;
+  font-size: 10px;
+  font-weight: 800;
+}
+.metric-lab button:focus-visible,
+.metric-lab input:focus-visible,
+.metric-lab select:focus-visible {
+  outline: 2px solid #f1bf00;
+  outline-offset: 3px;
+}
+@keyframes lab-cell-arrive {
+  from {
+    opacity: 0;
+    transform: rotateX(70deg) translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: rotateX(0) translateY(0);
+  }
+}
+@keyframes lab-score-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes lab-orbit-charge {
+  from {
+    stroke-dasharray: 0 100;
+    opacity: 0.2;
+  }
+  to {
+    stroke-dasharray: var(--score) 100;
+    opacity: 1;
+  }
+}
+@keyframes lab-ticks-lock {
+  from {
+    transform: rotate(-100deg);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(0);
+    opacity: 1;
+  }
+}
+@keyframes lab-digit-lock {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(calc(var(--digit) * -1em));
+  }
+}
+@media (min-width: 1000px) {
+  .metric-dial-grid:has(.metric-contender:nth-child(3)) .score-number {
+    font-size: 28px;
+  }
+  .metric-dial-grid:has(.metric-contender:nth-child(4)) .score-number {
+    font-size: 23px;
+  }
+}
+@media (max-width: 900px) {
+  .metric-lab__hero {
+    gap: 25px;
+  }
+  .metric-map {
+    padding: 16px;
+  }
+  .metric-map__grid {
+    gap: 3px;
+  }
+  .metric-map__grid span {
+    font-size: 8px;
+  }
+  .metric-lab__total {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .metric-lab__total > strong {
+    font-size: 52px;
+  }
+  .metric-lab__total button {
+    font-size: 7px;
+    padding: 10px;
+  }
+  .metric-lab-card > header {
+    padding: 16px;
+  }
+  .metric-dial-grid {
+    padding: 16px 12px;
+    gap: 16px 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .metric-contender > strong {
+    font-size: 11px;
+  }
+  .metric-lab-card > footer {
+    flex-wrap: wrap;
+    padding: 13px;
+  }
+  .metric-lab-card footer > span {
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 600px) {
+  .metric-lab__hero {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin-bottom: 26px;
+  }
+  .metric-lab__hero h2 {
+    font-size: clamp(44px, 13vw, 67px);
+  }
+  .metric-lab__hero > div > p:last-of-type {
+    font-size: 12px;
+    max-width: 300px;
+  }
+  .metric-lab__total {
+    margin-top: 22px;
+  }
+  .metric-lab__total > strong {
+    font-size: 58px;
+  }
+  .metric-lab__total button {
+    font-size: 8px;
+    padding: 12px;
+  }
+  .metric-map {
+    border-radius: 15px 3px 15px 3px;
+    box-shadow: 6px 6px 0 #04132966;
+  }
+  .metric-map__grid {
+    gap: 4px;
+  }
+  .metric-map__grid span {
+    font-size: 8px;
+  }
+  .metric-lab .metric-toolbar {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+  .metric-lab .metric-filter {
+    height: 46px;
+  }
+  .metric-lab__status {
+    align-items: flex-start;
+    flex-direction: column;
+    font-size: 8px;
+    gap: 10px;
+  }
+  .metric-lab__cards {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .metric-lab-card h3 {
+    font-size: 20px;
+  }
+  .metric-dial-grid {
+    padding: 18px 12px;
+  }
+  .score-number {
+    font-size: clamp(30px, 9vw, 39px);
+  }
+  .metric-contender > strong {
+    font-size: 12px;
+  }
+  .metric-lab-card > footer {
+    gap: 6px;
+  }
+  .metric-lab-card footer > span {
+    flex-basis: auto;
+    margin-right: 5px;
+  }
+  .metric-lab-card footer > b {
+    font-size: 9px;
+  }
+  .metric-lab-card footer > em {
+    font-size: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .metric-lab *,
+  .metric-lab *::before,
+  .metric-lab *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
