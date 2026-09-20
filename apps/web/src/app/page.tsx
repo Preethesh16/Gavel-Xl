@@ -141,7 +141,14 @@ export default function Home() {
         me={me}
         connection={game.connection}
         soundEnabled={sound.enabled}
+        soundAvailable={sound.available}
+        voiceEnabled={sound.voiceEnabled}
+        voiceSupported={sound.voiceSupported}
+        speaking={sound.speaking}
+        volume={sound.volume}
         onSoundToggle={sound.toggle}
+        onVoiceToggle={sound.toggleVoice}
+        onVolumeChange={sound.setVolume}
         onCopy={() => void copyInvite()}
         onBack={() => void game.leaveRoom()}
       />

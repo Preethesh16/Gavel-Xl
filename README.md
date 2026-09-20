@@ -234,6 +234,13 @@ are semantic and keyboard reachable; auction state is announced through live reg
 touch targets are mobile-first; and `prefers-reduced-motion` collapses cinematic sequences without
 changing the rules. Sound remains opt-in after a user gesture and globally togglable.
 
+The scouting desk, interactive portrait pitch, category duels, and trophy ceremony use real room
+snapshots. The results page offers **Replay the reveal**, with pause, next-round, and skip controls.
+The header's sound booth independently controls commentary and master volume; preferences persist
+on the device, while the host's room-wide mute takes precedence. Commentary uses an installed browser
+voice (preferring natural English voices when available), with local-voice fallback. Synthesized
+broadcast stings run locally and music ducks during speech. Audio starts after a user gesture.
+
 ## Completion tracking
 
 [GOALS.md](./GOALS.md) is the build contract distilled from the full product brief. A checkbox is only

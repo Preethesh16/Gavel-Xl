@@ -25,6 +25,7 @@ test('mixes auction music, natural speech, sold audio and the unsold cue without
         __gavelVoices?: string[];
         __gavelAudioEvents?: string[];
         __gavelCues?: string[];
+        __gavelFailNextNatural?: boolean;
       };
       testWindow.__GAVEL_SOUND_TEST__ = true;
       testWindow.__gavelAnnouncements = [];
@@ -39,7 +40,7 @@ test('mixes auction music, natural speech, sold audio and the unsold cue without
         pitch = 1;
         volume = 1;
         onend: (() => void) | null = null;
-        onerror: (() => void) | null = null;
+        onerror: ((event: { error: string }) => void) | null = null;
 
         constructor(text: string) {
           this.text = text;
@@ -112,6 +113,11 @@ test('mixes auction music, natural speech, sold audio and the unsold cue without
           ],
           resume: () => undefined,
           speak: (utterance: MockUtterance) => {
+            if (testWindow.__gavelFailNextNatural && utterance.voice?.name.includes('Natural')) {
+              testWindow.__gavelFailNextNatural = false;
+              window.setTimeout(() => utterance.onerror?.({ error: 'network' }), 0);
+              return;
+            }
             if (utterance.text.trim()) {
               testWindow.__gavelAnnouncements?.push(utterance.text);
               testWindow.__gavelVoices?.push(utterance.voice?.name ?? 'default');
@@ -126,6 +132,12 @@ test('mixes auction music, natural speech, sold audio and the unsold cue without
     const roomCode = await createRoom(host.page, host.name);
     await joinRoom(guest.page, roomCode, guest.name);
     await setLargeBudget(host.page, roomCode);
+    // The host's room-wide setting must win over an individual saved 'on' preference.
+    await host.page.getByTestId('settings-sound').uncheck();
+    await expect(host.page.getByTestId('sound-toggle')).toBeDisabled();
+    await expect(guest.page.getByTestId('sound-toggle')).toBeDisabled();
+    await host.page.getByTestId('settings-sound').check();
+    await expect(host.page.getByTestId('sound-toggle')).toBeEnabled();
     const lobbyPauseCount = await host.page.evaluate(
       () =>
         (
@@ -200,6 +212,117 @@ test('mixes auction music, natural speech, sold audio and the unsold cue without
         ),
       )
       .toContain('unsold');
+
+    // Pause the live auction while testing the personal broadcast mix.
+    await host.page.getByTestId('auction-pause').click();
+    await expect(host.page.getByTestId('auction-pause')).toContainText('RESUME');
+    const booth = host.page.getByTestId('audio-settings-toggle');
+    await booth.click();
+    await expect(host.page.getByTestId('voice-toggle')).toHaveAttribute('aria-pressed', 'true');
+    await host.page.getByTestId('voice-toggle').click();
+    await host.page.evaluate(() => {
+      window.dispatchEvent(
+        new CustomEvent('gavel-xi:broadcast-audio', {
+          detail: { id: 'muted-category-check', cue: 'category', message: 'Muted booth test.' },
+        }),
+      );
+    });
+    await expect
+      .poll(() =>
+        host.page.evaluate(
+          () => (window as typeof window & { __gavelCues?: string[] }).__gavelCues ?? [],
+        ),
+      )
+      .toContain('category');
+    await host.page.waitForTimeout(300);
+    expect(
+      await host.page.evaluate(
+        () =>
+          (window as typeof window & { __gavelAnnouncements?: string[] }).__gavelAnnouncements ??
+          [],
+      ),
+    ).not.toContain('Muted booth test.');
+
+    await host.page.getByTestId('voice-toggle').click();
+    await host.page.evaluate(() => {
+      const detail = {
+        id: 'live-category-check',
+        cue: 'category',
+        message: 'The scouting desk is live.',
+      };
+      window.dispatchEvent(new CustomEvent('gavel-xi:broadcast-audio', { detail }));
+      window.dispatchEvent(new CustomEvent('gavel-xi:broadcast-audio', { detail }));
+    });
+    await expect
+      .poll(() =>
+        host.page.evaluate(
+          () =>
+            (
+              (window as typeof window & { __gavelAnnouncements?: string[] })
+                .__gavelAnnouncements ?? []
+            ).filter((line) => line === 'The scouting desk is live.').length,
+        ),
+      )
+      .toBe(1);
+
+    await host.page.evaluate(() => {
+      (window as typeof window & { __gavelFailNextNatural?: boolean }).__gavelFailNextNatural =
+        true;
+      window.dispatchEvent(
+        new CustomEvent('gavel-xi:broadcast-audio', {
+          detail: {
+            id: 'fallback-voice-check',
+            cue: 'scan',
+            message: 'The local commentator takes over.',
+          },
+        }),
+      );
+    });
+    await expect
+      .poll(() =>
+        host.page.evaluate(
+          () =>
+            (window as typeof window & { __gavelAnnouncements?: string[] }).__gavelAnnouncements ??
+            [],
+        ),
+      )
+      .toContain('The local commentator takes over.');
+    expect(
+      await host.page.evaluate(() =>
+        (window as typeof window & { __gavelVoices?: string[] }).__gavelVoices?.at(-1),
+      ),
+    ).toBe('eSpeak English');
+
+    const volume = host.page.getByRole('slider', { name: 'Master volume' });
+    await volume.focus();
+    await volume.press('Home');
+    for (let step = 0; step < 7; step += 1) await volume.press('ArrowRight');
+    await expect
+      .poll(() => host.page.evaluate(() => localStorage.getItem('gavel-xi:volume')))
+      .toBe('0.35');
+    await host.page.getByTestId('voice-toggle').click();
+    await expect
+      .poll(() => host.page.evaluate(() => localStorage.getItem('gavel-xi:voice')))
+      .toBe('off');
+    await host.page.keyboard.press('Escape');
+    await expect(host.page.getByTestId('voice-toggle')).not.toBeVisible();
+    await host.page.getByTestId('sound-toggle').click();
+    await expect(host.page.getByTestId('sound-toggle')).toHaveAttribute(
+      'aria-label',
+      'Enable sound',
+    );
+    await host.page.evaluate(() => {
+      window.dispatchEvent(
+        new CustomEvent('gavel-xi:broadcast-audio', {
+          detail: { id: 'muted-winner-check', cue: 'winner', message: 'This must remain silent.' },
+        }),
+      );
+    });
+    expect(
+      await host.page.evaluate(
+        () => (window as typeof window & { __gavelCues?: string[] }).__gavelCues ?? [],
+      ),
+    ).not.toContain('winner');
     expect(directors.flatMap(({ runtimeErrors }) => runtimeErrors)).toEqual([]);
   } finally {
     await closeDirectors(directors);

@@ -4,14 +4,13 @@ import type { RoomMemberView, RoomView } from '@gavel-xi/shared';
 import type { ConnectionState } from '@/hooks/use-gavel-room';
 import { Brand } from './brand';
 import { ConnectionPill } from './system-feedback';
-import { CopyIcon, MuteIcon, VolumeIcon } from './icons';
+import { CopyIcon } from './icons';
+import { SoundBooth, type SoundBoothProps } from './sound-booth';
 
-interface RoomHeaderProps {
+interface RoomHeaderProps extends SoundBoothProps {
   room: RoomView;
   me: RoomMemberView;
   connection: ConnectionState;
-  soundEnabled: boolean;
-  onSoundToggle: () => void;
   onCopy: () => void;
   onBack: () => void;
 }
@@ -21,7 +20,14 @@ export function RoomHeader({
   me,
   connection,
   soundEnabled,
+  soundAvailable,
+  voiceEnabled,
+  voiceSupported,
+  speaking,
+  volume,
   onSoundToggle,
+  onVoiceToggle,
+  onVolumeChange,
   onCopy,
   onBack,
 }: RoomHeaderProps) {
@@ -56,15 +62,17 @@ export function RoomHeader({
           <i style={{ background: me.color }} />
           {me.name}
         </span>
-        <button
-          className="icon-button"
-          data-testid="sound-toggle"
-          type="button"
-          onClick={onSoundToggle}
-          aria-label={soundEnabled ? 'Mute sound' : 'Enable sound'}
-        >
-          {soundEnabled ? <VolumeIcon /> : <MuteIcon />}
-        </button>
+        <SoundBooth
+          soundEnabled={soundEnabled}
+          soundAvailable={soundAvailable}
+          voiceEnabled={voiceEnabled}
+          voiceSupported={voiceSupported}
+          speaking={speaking}
+          volume={volume}
+          onSoundToggle={onSoundToggle}
+          onVoiceToggle={onVoiceToggle}
+          onVolumeChange={onVolumeChange}
+        />
         <ConnectionPill state={connection} />
       </div>
     </header>

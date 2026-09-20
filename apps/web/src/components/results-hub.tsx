@@ -1,7 +1,7 @@
 'use client';
 
 import type { RoomMemberView, RoomView } from '@gavel-xi/shared';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AnalystReport, VerdictReveal } from './analyst-report';
 import { MetricsExplorer } from './metrics-explorer';
 import { Podium } from './podium';
@@ -27,7 +27,9 @@ export function ResultsHub({
 }) {
   const [tab, setTab] = useState<ResultTab>('podium');
   const [revealComplete, setRevealComplete] = useState(readOnly);
+  const [replaying, setReplaying] = useState(false);
   const evaluation = room.evaluation;
+  const completeReveal = useCallback(() => setRevealComplete(true), []);
 
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get('view');
@@ -58,7 +60,8 @@ export function ResultsHub({
         <VerdictReveal
           room={room}
           evaluation={evaluation}
-          onComplete={() => setRevealComplete(true)}
+          replay={replaying}
+          onComplete={completeReveal}
         />
       </main>
     );
@@ -116,7 +119,20 @@ export function ResultsHub({
           <ShareIcon /> SHARE
         </button>
       </nav>
-      <div className="results-hub__body">
+      <div className="results-hub__body" key={tab}>
+        {tab === 'podium' ? (
+          <button
+            className="ceremony-replay"
+            data-testid="replay-ceremony"
+            onClick={() => {
+              setReplaying(true);
+              setRevealComplete(false);
+              window.scrollTo({ top: 0, behavior: 'instant' });
+            }}
+          >
+            <ReplayIcon /> REPLAY THE REVEAL
+          </button>
+        ) : null}
         {tab === 'podium' ? <Podium room={room} evaluation={evaluation} /> : null}
         {tab === 'analysis' ? <AnalystReport room={room} evaluation={evaluation} /> : null}
         {tab === 'teams' ? (

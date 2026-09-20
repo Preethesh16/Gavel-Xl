@@ -3,8 +3,10 @@
 import type { EvaluationView, RoomView, TeamResultView } from '@gavel-xi/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '@/lib/format';
+import { emitBroadcast, cancelBroadcastNarration } from '@/lib/broadcast-audio';
+import { BroadcastAtmosphere, BroadcastStrip, CountUp } from './broadcast-kit';
 
-const REVEAL_INTERVAL_MS = 620;
+const REVEAL_INTERVAL_MS = 4200;
 
 function memberName(room: RoomView, memberId: string): string {
   return room.members.find(({ id }) => id === memberId)?.name ?? 'Director';
@@ -58,83 +60,162 @@ export function VerdictReveal({
   room,
   evaluation,
   onComplete,
+  replay = false,
 }: {
   room: RoomView;
   evaluation: EvaluationView;
   onComplete: () => void;
+  replay?: boolean;
 }) {
   const categories = useMemo(
     () => Object.keys(evaluation.teams[0]?.categoryScores ?? {}),
     [evaluation.teams],
   );
-  const [visible, setVisible] = useState(
-    process.env.NEXT_PUBLIC_E2E === 'true' ? categories.length : 0,
+  const [round, setRound] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [runId] = useState(() => Date.now());
+  const category = categories[round] ?? '';
+  const ranked = [...evaluation.teams].sort(
+    (a, b) => (b.categoryScores[category] ?? 0) - (a.categoryScores[category] ?? 0),
   );
+  const leader = ranked[0];
+  const leaders = ranked.filter(
+    (team) => team.categoryScores[category] === leader?.categoryScores[category],
+  );
+  const leaderNames = leaders.map((team) => memberName(room, team.memberId)).join(' & ');
 
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_E2E === 'true') {
+    if (process.env.NEXT_PUBLIC_E2E === 'true' && !replay) {
       onComplete();
       return;
     }
-    if (visible >= categories.length) {
-      const unlock = window.setTimeout(onComplete, 950);
-      return () => window.clearTimeout(unlock);
-    }
-    const timer = window.setTimeout(() => setVisible((count) => count + 1), REVEAL_INTERVAL_MS);
+    if (paused) return;
+    const timer = window.setTimeout(() => {
+      if (round + 1 >= categories.length) onComplete();
+      else setRound((value) => value + 1);
+    }, REVEAL_INTERVAL_MS);
     return () => window.clearTimeout(timer);
-  }, [categories.length, onComplete, visible]);
+  }, [categories.length, onComplete, paused, replay, round]);
 
+  useEffect(() => {
+    if (!category || (process.env.NEXT_PUBLIC_E2E === 'true' && !replay)) return;
+    emitBroadcast({
+      id: `category-${room.code}-${runId}-${round}`,
+      cue: 'category',
+      message: `${category}. ${leaderNames} ${leaders.length > 1 ? 'share the lead' : 'takes the round'}.`,
+      delayMs: 250,
+    });
+    return cancelBroadcastNarration;
+  }, [category, leaderNames, leaders.length, replay, room.code, round, runId]);
+
+  const finish = () => {
+    cancelBroadcastNarration();
+    onComplete();
+  };
   return (
-    <section className="verdict-reveal" data-testid="verdict-reveal">
-      <header>
-        <p className="eyebrow">THE NUMBERS ARE LOCKED</p>
-        <h1>
-          TEN ROUNDS.
-          <br />
-          <em>ONE VERDICT.</em>
-        </h1>
-        <p>Category leaders arrive one by one. The champion stays sealed until the board closes.</p>
+    <section className="broadcast-scene battle-reveal" data-testid="verdict-reveal">
+      <BroadcastAtmosphere />
+      <BroadcastStrip label="THE DECISION" detail="100 metrics. Every department. One champion." />
+      <header className="battle-heading">
+        <div>
+          <p className="eyebrow">THE FINAL SHOWDOWN</p>
+          <h1>
+            EVERY EDGE.
+            <br />
+            <em>EVERYTHING.</em>
+          </h1>
+        </div>
+        <div className="battle-counter">
+          <span>ROUND</span>
+          <strong data-testid="verdict-round-counter">
+            {String(round + 1).padStart(2, '0')} <small>/ {categories.length}</small>
+          </strong>
+          <span>CHAMPION STILL SEALED</span>
+        </div>
       </header>
-      <div className="verdict-reveal__status">
-        <span>{String(Math.min(visible, categories.length)).padStart(2, '0')}</span>
-        <i>
-          <b
-            style={{ width: `${categories.length ? (visible / categories.length) * 100 : 100}%` }}
-          />
-        </i>
-        <strong>{String(categories.length).padStart(2, '0')} ROUNDS</strong>
+      <div className="battle-arena" key={category}>
+        <div className="battle-category">
+          <span>{String(round + 1).padStart(2, '0')}</span>
+          <p>DEPARTMENT UNDER THE LIGHTS</p>
+          <h2>{category.replaceAll(' & ', ' + ')}</h2>
+          <div className="battle-lead">
+            <i />
+            {leaderNames}
+            <b>{leaders.length > 1 ? 'SHARED LEAD' : 'TAKES THE ROUND'}</b>
+          </div>
+        </div>
+        <div className="battle-contenders" aria-live="polite">
+          {ranked.map((team, index) => {
+            const score = team.categoryScores[category] ?? 0;
+            return (
+              <article
+                key={team.memberId}
+                className={index === 0 ? 'is-leading' : ''}
+                style={
+                  {
+                    '--team-color': memberColor(room, team.memberId),
+                    '--contender-index': index,
+                  } as React.CSSProperties
+                }
+              >
+                <span className="battle-position">{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <span>{index === 0 ? 'CATEGORY LEADER' : 'CHALLENGER'}</span>
+                  <h3>{memberName(room, team.memberId)}</h3>
+                  <div className="battle-score-track">
+                    <i style={{ transform: `scaleX(${score / 100})` }} />
+                  </div>
+                </div>
+                <strong>
+                  <CountUp value={score} />
+                  <small>/100</small>
+                </strong>
+              </article>
+            );
+          })}
+        </div>
       </div>
-      <div className="verdict-rounds" aria-live="polite">
-        {categories.slice(0, visible).map((category, index) => {
-          const scores = evaluation.teams.map((team) => team.categoryScores[category] ?? 0);
-          const best = Math.max(...scores);
-          const winners = evaluation.teams.filter(
-            (team) => (team.categoryScores[category] ?? 0) === best,
-          );
-          return (
-            <article key={category} style={{ '--round-index': index } as React.CSSProperties}>
-              <div>
-                <span>
-                  {String(index * 10 + 1).padStart(2, '0')}–{(index + 1) * 10}
-                </span>
-                <h2>{category}</h2>
-                <p>{winners.map(({ memberId }) => memberName(room, memberId)).join(' & ')} LEADS</p>
-              </div>
-              <CategoryScoreBars room={room} teams={evaluation.teams} category={category} />
-            </article>
-          );
-        })}
-      </div>
-      <button
-        className="verdict-skip"
-        type="button"
-        onClick={() => {
-          setVisible(categories.length);
-          onComplete();
-        }}
-      >
-        REVEAL THE FINAL VERDICT →
-      </button>
+      <nav className="battle-timeline" aria-label="Category rounds">
+        {categories.map((name, index) => (
+          <button
+            key={name}
+            className={index === round ? 'is-current' : index < round ? 'is-revealed' : ''}
+            onClick={() => setRound(index)}
+            aria-current={index === round ? 'step' : undefined}
+            aria-label={`Show round ${index + 1}: ${name}`}
+          >
+            <span>{String(index + 1).padStart(2, '0')}</span>
+            <b>{name}</b>
+          </button>
+        ))}
+      </nav>
+      <footer className="battle-controls">
+        <span>
+          <i />
+          {paused ? 'BROADCAST PAUSED' : 'THE VERDICT IS UNFOLDING'}
+        </span>
+        <div>
+          <button
+            data-testid="verdict-pause"
+            aria-pressed={paused}
+            onClick={() => {
+              setPaused(!paused);
+              if (!paused) cancelBroadcastNarration();
+            }}
+          >
+            {paused ? '▶ RESUME' : 'Ⅱ PAUSE'}
+          </button>
+          <button
+            data-testid="verdict-next"
+            onClick={() => (round + 1 < categories.length ? setRound(round + 1) : finish())}
+          >
+            NEXT ROUND →
+          </button>
+          <button data-testid="verdict-skip" className="battle-controls__final" onClick={finish}>
+            REVEAL CHAMPION ↗
+          </button>
+        </div>
+      </footer>
     </section>
   );
 }

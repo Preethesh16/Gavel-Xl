@@ -3,6 +3,9 @@ import type { ReactNode } from 'react';
 import './globals.css';
 import './transfer-room.css';
 import './scouting-room.css';
+import './broadcast-room.css';
+import './tactical-pitch.css';
+import './audio-controls.css';
 
 export const metadata: Metadata = {
   title: 'Gavel XI — Build the XI. Break the Bank.',

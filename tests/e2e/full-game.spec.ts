@@ -148,6 +148,21 @@ test('two directors complete every slot and receive the 100-metric verdict, reca
     );
     await expect(publicViewer.page.locator('.public-results__header')).toContainText(roomCode);
     await expect(publicViewer.page.getByTestId('results-podium')).toBeVisible();
+    await publicViewer.page.getByTestId('audio-settings-toggle').click();
+    await expect(publicViewer.page.getByTestId('voice-toggle')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await publicViewer.page.getByTestId('voice-toggle').click();
+    await expect(publicViewer.page.getByTestId('voice-toggle')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    await publicViewer.page.keyboard.press('Escape');
+    await publicViewer.page.getByTestId('replay-ceremony').click();
+    await expect(publicViewer.page.getByTestId('verdict-reveal')).toBeVisible();
+    await publicViewer.page.getByTestId('verdict-skip').click();
+    await expect(publicViewer.page.getByTestId('results-podium')).toBeVisible();
     expect(
       await publicViewer.page.evaluate((key) => localStorage.getItem(key), 'gavel-xi:session'),
     ).toBeNull();

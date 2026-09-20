@@ -2,9 +2,11 @@
 
 import type { CheckpointView, RoomMemberView, RoomView } from '@gavel-xi/shared';
 import { useEffect, useMemo, useState } from 'react';
-import { formatMoney, initials } from '@/lib/format';
+import { formatMoney } from '@/lib/format';
 import { ArrowIcon, CrownIcon, GavelIcon } from './icons';
 import { TeamBoard } from './team-check';
+import { BroadcastAtmosphere, BroadcastStrip, CountUp } from './broadcast-kit';
+import { emitBroadcast, cancelBroadcastNarration } from '@/lib/broadcast-audio';
 
 function MemberName({ room, memberId }: { room: RoomView; memberId: string }) {
   const member = room.members.find((candidate) => candidate.id === memberId);
@@ -56,6 +58,82 @@ function CheckpointContent({ room, checkpoint }: { room: RoomView; checkpoint: C
     );
   return (
     <>
+      <div className="scout-desk">
+        <section className="scout-spotlight">
+          <div className="scout-spotlight__radar" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+            <b>+</b>
+          </div>
+          <div className="scout-spotlight__image">
+            {signing?.candidate.imageUrl ? (
+              <img
+                src={signing.candidate.imageUrl}
+                alt={signing.candidate.commonName}
+                onError={(event) => {
+                  event.currentTarget.style.visibility = 'hidden';
+                }}
+              />
+            ) : (
+              <span>XI</span>
+            )}
+          </div>
+          <div className="scout-spotlight__copy">
+            <p>THE TRANSFER THAT TURNS HEADS</p>
+            <h2>{signing?.candidate.commonName ?? 'The next big move'}</h2>
+            <span>{signing?.candidate.club ?? 'Your scouting desk is live'}</span>
+            <div>
+              <b>
+                {formatMoney(signing?.purchasePriceEUR, true)}
+                <small>DEAL CLOSED</small>
+              </b>
+              <b>
+                {formatMoney(signing?.marketValueEUR, true)}
+                <small>MARKET VALUE</small>
+              </b>
+            </div>
+          </div>
+          <span className="scout-spotlight__tag">SIGNING OF THE WINDOW ↗</span>
+        </section>
+        <section className="scout-leaderboard" data-testid="checkpoint-rankings">
+          <header>
+            <p>POWER RANKINGS</p>
+            <span>LIVE PROJECTION</span>
+          </header>
+          {rankings.map((member, index) => (
+            <article
+              key={member.id}
+              style={{ '--team-color': member.color, '--row-index': index } as React.CSSProperties}
+            >
+              <span className="scout-rank">{String(index + 1).padStart(2, '0')}</span>
+              <div>
+                <h3>{member.name}</h3>
+                <small>
+                  {(checkpoint.remainingPositions[member.id] ?? []).length} POSITIONS REMAIN ·{' '}
+                  {formatMoney(member.budgetEUR, true)}
+                </small>
+                <div className="scout-rank-track">
+                  <i
+                    style={{
+                      transform: `scaleX(${(checkpoint.projectedScores[member.id] ?? 0) / 100})`,
+                    }}
+                  />
+                </div>
+                <p>
+                  PRIORITY <b>{checkpoint.weaknesses[member.id] ?? 'Build squad depth'}</b>
+                </p>
+              </div>
+              <strong>
+                <CountUp value={checkpoint.projectedScores[member.id] ?? 0} />
+              </strong>
+            </article>
+          ))}
+          <footer>
+            <i /> PROVISIONAL. THE NEXT SIGNING CHANGES EVERYTHING.
+          </footer>
+        </section>
+      </div>
       <div className="checkpoint-cards" data-testid="checkpoint-cards">
         <ReportCard
           index={1}
@@ -97,33 +175,6 @@ function CheckpointContent({ room, checkpoint }: { room: RoomView; checkpoint: C
           member={room.members.find((member) => member.id === overpay?.memberId)}
         />
       </div>
-      <section className="checkpoint-table" data-testid="checkpoint-rankings">
-        <header>
-          <span>LIVE PROJECTION</span>
-          <span>WEAK LINK</span>
-          <span>BUDGET</span>
-          <span>SCORE</span>
-        </header>
-        {rankings.map((member, index) => (
-          <article key={member.id}>
-            <span className="checkpoint-rank">{index + 1}</span>
-            <span className="checkpoint-avatar" style={{ background: member.color }}>
-              {initials(member.name)}
-            </span>
-            <span className="checkpoint-name">
-              <b>{member.name}</b>
-              <small>
-                {(checkpoint.remainingPositions[member.id] ?? []).length} POSITIONS REMAIN
-              </small>
-            </span>
-            <span className="checkpoint-weakness">
-              {checkpoint.weaknesses[member.id] ?? 'Still taking shape'}
-            </span>
-            <strong>{formatMoney(member.budgetEUR, true)}</strong>
-            <em>{(checkpoint.projectedScores[member.id] ?? 0).toFixed(1)}</em>
-          </article>
-        ))}
-      </section>
     </>
   );
 }
@@ -155,26 +206,41 @@ export function Checkpoint({
     setActiveDirector(Math.max(0, mine));
   }, [checkpoint?.number, me.id]);
 
+  useEffect(() => {
+    if (!checkpoint) return;
+    const leaderName =
+      room.members.find((member) => member.id === checkpoint.leaderId)?.name ?? 'The leader';
+    emitBroadcast({
+      id: `checkpoint-${room.code}-${checkpoint.number}`,
+      cue: 'checkpoint',
+      message: `Back to the scouting desk. ${leaderName} leads the projections. There is still business to be done.`,
+      delayMs: 350,
+    });
+    return cancelBroadcastNarration;
+  }, [checkpoint?.number, checkpoint?.leaderId, room.code]);
+
   const selectDirector = (index: number) => {
     if (directors.length === 0) return;
     setActiveDirector((index + directors.length) % directors.length);
   };
 
   return (
-    <main className="checkpoint" data-testid="checkpoint-screen">
-      <div className="stadium-lines" />
-      <div className="broadcast-bars">
-        <i />
-        <i />
-        <i />
-        <i />
-      </div>
+    <main className="checkpoint broadcast-checkpoint" data-testid="checkpoint-screen">
+      <BroadcastAtmosphere />
+      <BroadcastStrip
+        label="THE SCOUTING DESK"
+        detail={`Live intelligence / ${room.resolvedCycles} of ${room.totalCycles} rounds played`}
+      />
       <header className="checkpoint__heading">
         <div>
           <p className="eyebrow">
             <span>HALF-TIME INTELLIGENCE</span> PROVISIONAL
           </p>
-          <h1>SCOUT REPORT</h1>
+          <h1>
+            THE WINDOW.
+            <br />
+            <em>WIDE OPEN.</em>
+          </h1>
           <p>
             {checkpoint
               ? `${checkpoint.resolvedCycles} of ${room.totalCycles} position cycles resolved.`

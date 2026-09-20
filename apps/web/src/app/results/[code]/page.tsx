@@ -1,7 +1,6 @@
 import type { RoomView } from '@gavel-xi/shared';
 import { notFound } from 'next/navigation';
-import { Brand } from '@/components/brand';
-import { ResultsHub } from '@/components/results-hub';
+import { PublicResults } from '@/components/public-results';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,16 +31,5 @@ export default async function PublicResultsPage({ params }: { params: Promise<{ 
   const viewer = room.members.find((member) => !member.isSpectator);
   if (viewer === undefined) notFound();
 
-  return (
-    <div className="public-results">
-      <header className="public-results__header">
-        <Brand compact />
-        <div>
-          <span>READ-ONLY RESULT</span>
-          <strong>{room.code}</strong>
-        </div>
-      </header>
-      <ResultsHub room={room} me={viewer} readOnly />
-    </div>
-  );
+  return <PublicResults room={room} viewer={viewer} />;
 }

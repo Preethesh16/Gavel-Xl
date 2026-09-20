@@ -1,114 +1,55 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  BROADCAST_AUDIO_EVENT,
+  BROADCAST_CANCEL_EVENT,
+  BroadcastNarrator,
+  type BroadcastAudioEvent,
+  type SoundCue,
+} from '@/lib/broadcast-audio';
+import { createStadiumBus, playStadiumCue } from '@/lib/stadium-synth';
 import type { AuctionMoment } from './use-gavel-room';
 
 const SOUND_KEY = 'gavel-xi:sound';
-
-type Cue =
-  'join' | 'reveal' | 'bid' | 'outbid' | 'sold' | 'unsold' | 'forced' | 'checkpoint' | 'winner';
+const VOICE_KEY = 'gavel-xi:voice';
+const VOLUME_KEY = 'gavel-xi:volume';
 
 export type MusicMode = 'lobby' | 'auction' | 'off';
 
-interface PendingAnnouncement {
-  key: string;
-  message: string;
-}
-
 type SoundTestWindow = typeof window & {
   __GAVEL_SOUND_TEST__?: boolean;
-  __gavelCues?: Cue[];
+  __gavelCues?: SoundCue[];
 };
 
-function storedSound(fallback: boolean): boolean {
+function storedPreference(key: string, fallback: boolean): boolean {
   try {
-    const value = window.localStorage.getItem(SOUND_KEY);
+    const value = window.localStorage.getItem(key);
     return value === null ? fallback : value === 'on';
   } catch {
     return fallback;
   }
 }
 
-function oscillator(
-  context: AudioContext,
-  frequency: number,
-  startsAt: number,
-  duration: number,
-  volume: number,
-  type: OscillatorType = 'sine',
-): void {
-  const source = context.createOscillator();
-  const gain = context.createGain();
-  source.type = type;
-  source.frequency.setValueAtTime(frequency, startsAt);
-  gain.gain.setValueAtTime(0.0001, startsAt);
-  gain.gain.exponentialRampToValueAtTime(volume, startsAt + Math.min(0.018, duration / 3));
-  gain.gain.exponentialRampToValueAtTime(0.0001, startsAt + duration);
-  source.connect(gain).connect(context.destination);
-  source.start(startsAt);
-  source.stop(startsAt + duration + 0.02);
-}
-
-function playPattern(context: AudioContext, cue: Cue): void {
-  const now = context.currentTime + 0.01;
-  if (cue === 'bid') {
-    oscillator(context, 520, now, 0.08, 0.035, 'square');
-    oscillator(context, 720, now + 0.07, 0.09, 0.025, 'square');
-  } else if (cue === 'outbid') {
-    oscillator(context, 280, now, 0.12, 0.045, 'sawtooth');
-    oscillator(context, 210, now + 0.1, 0.16, 0.035, 'sawtooth');
-  } else if (cue === 'sold') {
-    oscillator(context, 82, now, 0.32, 0.16, 'sine');
-    oscillator(context, 164, now, 0.2, 0.065, 'triangle');
-    oscillator(context, 640, now + 0.22, 0.35, 0.04, 'sine');
-    oscillator(context, 810, now + 0.3, 0.32, 0.03, 'sine');
-  } else if (cue === 'unsold') {
-    oscillator(context, 220, now, 0.24, 0.11, 'sawtooth');
-    oscillator(context, 165, now + 0.22, 0.3, 0.095, 'sawtooth');
-    oscillator(context, 110, now + 0.5, 0.48, 0.08, 'triangle');
-  } else if (cue === 'forced') {
-    oscillator(context, 260, now, 0.16, 0.05, 'square');
-    oscillator(context, 390, now + 0.16, 0.16, 0.05, 'square');
-    oscillator(context, 520, now + 0.32, 0.3, 0.06, 'square');
-  } else if (cue === 'reveal') {
-    oscillator(context, 64, now, 0.7, 0.12, 'sine');
-    oscillator(context, 320, now + 0.18, 0.5, 0.025, 'sine');
-  } else if (cue === 'checkpoint') {
-    [392, 494, 587].forEach((frequency, index) =>
-      oscillator(context, frequency, now + index * 0.1, 0.32, 0.035, 'triangle'),
-    );
-  } else if (cue === 'winner') {
-    [262, 330, 392, 523].forEach((frequency, index) =>
-      oscillator(context, frequency, now + index * 0.13, 0.6, 0.045, 'triangle'),
-    );
-  } else {
-    oscillator(context, 430, now, 0.1, 0.03, 'triangle');
-    oscillator(context, 620, now + 0.09, 0.16, 0.025, 'triangle');
+function persist(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Private browsing must not prevent a working local audio control.
   }
-}
-
-function announcementFor(moment: AuctionMoment): { key: string; message: string } | null {
-  const name = moment.lot?.candidate.commonName || moment.lot?.candidate.fullName;
-  if ((moment.kind === 'reveal' || moment.kind === 'opened') && name && moment.lot) {
-    const role = moment.lot?.candidate.kind === 'MANAGER' ? 'manager' : 'player';
-    return { key: moment.lot.id, message: `Next ${role} is ${name}.` };
-  }
-  return null;
-}
-
-function speechAllowed(): boolean {
-  if (process.env.NEXT_PUBLIC_E2E !== 'true') return true;
-  return Boolean(typeof window !== 'undefined' && (window as SoundTestWindow).__GAVEL_SOUND_TEST__);
 }
 
 function audioAllowed(): boolean {
-  return process.env.NEXT_PUBLIC_E2E !== 'true' || speechAllowed();
+  return (
+    process.env.NEXT_PUBLIC_E2E !== 'true' ||
+    Boolean(typeof window !== 'undefined' && (window as SoundTestWindow).__GAVEL_SOUND_TEST__)
+  );
 }
 
 function voiceScore(voice: SpeechSynthesisVoice): number {
-  const language = voice.lang.toLocaleLowerCase();
+  const language = voice.lang.toLowerCase();
   if (!language.startsWith('en')) return -10_000;
-  const name = voice.name.toLocaleLowerCase();
+  const name = voice.name.toLowerCase();
   let score = language.startsWith('en-gb') ? 25 : language.startsWith('en-us') ? 20 : 10;
   for (const [keyword, points] of [
     ['natural', 180],
@@ -131,42 +72,52 @@ function voiceScore(voice: SpeechSynthesisVoice): number {
   return score;
 }
 
-function utteranceFor(message: string, onDone: () => void): SpeechSynthesisUtterance {
-  const utterance = new SpeechSynthesisUtterance(message);
-  const voices = window.speechSynthesis
-    .getVoices()
-    .filter((voice) => voice.lang.toLocaleLowerCase().startsWith('en'))
-    .sort((left, right) => voiceScore(right) - voiceScore(left));
-  utterance.voice = voices[0] ?? null;
-  utterance.rate = 0.97;
-  utterance.pitch = 1;
-  utterance.volume = 1;
-  utterance.onend = onDone;
-  utterance.onerror = onDone;
-  return utterance;
-}
-
 export function useSound(roomDefault: boolean, moment: AuctionMoment | null, musicMode: MusicMode) {
-  const [enabled, setEnabled] = useState(roomDefault);
+  const [preference, setPreference] = useState(true);
+  const [voicePreference, setVoicePreference] = useState(true);
+  const [voiceSupported, setVoiceSupported] = useState(true);
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [volume, setVolumeState] = useState(0.8);
+  const [speaking, setSpeaking] = useState(false);
+  const enabled = preferencesReady && roomDefault && preference;
   const enabledRef = useRef(enabled);
+  const voiceRef = useRef(voicePreference);
+  const volumeRef = useRef(volume);
+  const unlockedRef = useRef(false);
   const musicModeRef = useRef(musicMode);
   const contextRef = useRef<AudioContext | null>(null);
+  const effectsBusRef = useRef<GainNode | null>(null);
   const backgroundRef = useRef<HTMLAudioElement | null>(null);
   const soldRef = useRef<HTMLAudioElement | null>(null);
   const playedMoment = useRef<number | null>(null);
   const announcedLot = useRef<string | null>(null);
-  const announcementTimer = useRef<number | null>(null);
-  const pendingAnnouncement = useRef<PendingAnnouncement | null>(null);
+  const broadcastHistory = useRef(new Set<string>());
+  const activeBroadcast = useRef<string | null>(null);
+  const narratorRef = useRef<BroadcastNarrator | null>(null);
+  const speechGeneration = useRef(0);
   const duckReasons = useRef(new Set<'sold' | 'speech'>());
+  const soldWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   enabledRef.current = enabled;
+  voiceRef.current = voicePreference;
+  volumeRef.current = volume;
   musicModeRef.current = musicMode;
 
   const updateMusicMix = useCallback(() => {
     const background = backgroundRef.current;
-    if (!background) return;
-    const baseVolume = musicModeRef.current === 'auction' ? 0.09 : 0.16;
-    background.volume = duckReasons.current.size > 0 ? Math.min(baseVolume, 0.035) : baseVolume;
+    if (background) {
+      const base = musicModeRef.current === 'auction' ? 0.09 : 0.16;
+      background.volume =
+        (duckReasons.current.size ? Math.min(base, 0.025) : base) * volumeRef.current;
+    }
+    if (soldRef.current) soldRef.current.volume = 0.78 * volumeRef.current;
+    if (effectsBusRef.current && contextRef.current) {
+      effectsBusRef.current.gain.setTargetAtTime(
+        volumeRef.current,
+        contextRef.current.currentTime,
+        0.035,
+      );
+    }
   }, []);
 
   const setDucked = useCallback(
@@ -178,51 +129,127 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
     [updateMusicMix],
   );
 
-  const flushAnnouncement = useCallback(() => {
-    if (
-      !enabledRef.current ||
-      !speechAllowed() ||
-      !pendingAnnouncement.current ||
-      !('speechSynthesis' in window)
-    )
-      return;
-    const sold = soldRef.current;
-    if (sold && !sold.paused && !sold.ended) return;
-
-    const pending = pendingAnnouncement.current;
-    pendingAnnouncement.current = null;
-    if (announcementTimer.current !== null) window.clearTimeout(announcementTimer.current);
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.resume();
-    announcementTimer.current = window.setTimeout(() => {
-      if (!enabledRef.current) return;
-      const finish = () => setDucked('speech', false);
-      const utterance = utteranceFor(pending.message, finish);
-      setDucked('speech', true);
-      try {
-        window.speechSynthesis.speak(utterance);
-      } catch {
-        finish();
-      }
-      announcementTimer.current = null;
-    }, 80);
+  const getNarrator = useCallback(() => {
+    if (!narratorRef.current) {
+      narratorRef.current = new BroadcastNarrator({
+        speak: (message, done) => {
+          const generation = ++speechGeneration.current;
+          if (
+            !enabledRef.current ||
+            !voiceRef.current ||
+            volumeRef.current === 0 ||
+            !audioAllowed() ||
+            !('speechSynthesis' in window)
+          ) {
+            done();
+            return;
+          }
+          const voices = window.speechSynthesis
+            .getVoices()
+            .filter((voice) => voice.lang.toLowerCase().startsWith('en'))
+            .sort((left, right) => voiceScore(right) - voiceScore(left));
+          const preferred = voices[0] ?? null;
+          const localFallback =
+            voices.find((voice) => voice.localService && voice !== preferred) ?? null;
+          const createLine = (voice: SpeechSynthesisVoice | null, canRetry: boolean) => {
+            const utterance = new SpeechSynthesisUtterance(message);
+            // Voices may load asynchronously. The device default remains a fallback.
+            utterance.voice = voice;
+            utterance.lang = voice?.lang ?? 'en-GB';
+            utterance.rate = 1.06;
+            utterance.pitch = 0.96;
+            utterance.volume = volumeRef.current;
+            utterance.onend = done;
+            utterance.onerror = (event) => {
+              // A downloaded voice can fail offline. Try the installed/default voice once;
+              // an intentional cancel must never restart a stale line.
+              if (
+                canRetry &&
+                generation === speechGeneration.current &&
+                event.error !== 'canceled' &&
+                event.error !== 'interrupted' &&
+                enabledRef.current &&
+                voiceRef.current
+              ) {
+                try {
+                  window.speechSynthesis.speak(createLine(localFallback, false));
+                  return;
+                } catch {
+                  // Both engines are optional; the visible broadcast remains complete.
+                }
+              }
+              done();
+            };
+            return utterance;
+          };
+          window.speechSynthesis.resume();
+          window.speechSynthesis.speak(createLine(preferred, Boolean(preferred)));
+        },
+        cancel: () => {
+          speechGeneration.current += 1;
+          if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        },
+        onSpeaking: (active) => {
+          setSpeaking(active);
+          setDucked('speech', active);
+        },
+      });
+    }
+    return narratorRef.current;
   }, [setDucked]);
 
-  useEffect(() => setEnabled(storedSound(roomDefault)), [roomDefault]);
+  const announce = useCallback(
+    (message: string, delay = 80) => {
+      if (!enabledRef.current || !voiceRef.current || !audioAllowed()) return;
+      const narrator = getNarrator();
+      const sold = soldRef.current;
+      narrator.hold(!unlockedRef.current || Boolean(sold && !sold.paused && !sold.ended));
+      narrator.queue(message, delay);
+    },
+    [getNarrator],
+  );
+
+  const cancelNarration = useCallback(() => narratorRef.current?.cancel(), []);
+
+  const stopAll = useCallback(() => {
+    backgroundRef.current?.pause();
+    soldRef.current?.pause();
+    if (soldWatchdog.current !== null) clearTimeout(soldWatchdog.current);
+    soldWatchdog.current = null;
+    narratorRef.current?.cancel();
+    duckReasons.current.clear();
+    if (contextRef.current?.state === 'running')
+      void contextRef.current.suspend().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    setPreference(storedPreference(SOUND_KEY, true));
+    setVoicePreference(storedPreference(VOICE_KEY, true));
+    setVoiceSupported('speechSynthesis' in window && 'SpeechSynthesisUtterance' in window);
+    try {
+      const saved = window.localStorage.getItem(VOLUME_KEY);
+      const parsed = saved === null ? 0.8 : Number(saved);
+      setVolumeState(Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : 0.8);
+    } catch {
+      // Defaults work when storage is unavailable.
+    }
+    setPreferencesReady(true);
+  }, []);
 
   useEffect(() => {
     const background = new Audio('/audio/background-music.mp3');
     background.loop = true;
     background.preload = 'auto';
-    background.volume = 0.16;
     backgroundRef.current = background;
     const sold = new Audio('/audio/here-we-go.mp3');
     sold.preload = 'auto';
-    sold.volume = 0.78;
     soldRef.current = sold;
+    updateMusicMix();
     const soldFinished = () => {
+      if (soldWatchdog.current !== null) clearTimeout(soldWatchdog.current);
+      soldWatchdog.current = null;
       setDucked('sold', false);
-      flushAnnouncement();
+      narratorRef.current?.hold(!unlockedRef.current);
     };
     sold.addEventListener('ended', soldFinished);
     sold.addEventListener('error', soldFinished);
@@ -234,7 +261,7 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
       backgroundRef.current = null;
       soldRef.current = null;
     };
-  }, [flushAnnouncement, setDucked]);
+  }, [setDucked, updateMusicMix]);
 
   useEffect(() => {
     const background = backgroundRef.current;
@@ -243,9 +270,13 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
     if (!enabled || musicMode === 'off') {
       background.pause();
       background.currentTime = 0;
+      if (!enabled) stopAll();
       return;
     }
-    const start = () => void background.play().catch(() => undefined);
+    const start = () => {
+      if (enabledRef.current && musicModeRef.current !== 'off')
+        void background.play().catch(() => undefined);
+    };
     start();
     window.addEventListener('pointerdown', start, { once: true });
     window.addEventListener('keydown', start, { once: true });
@@ -253,28 +284,36 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
       window.removeEventListener('pointerdown', start);
       window.removeEventListener('keydown', start);
     };
-  }, [enabled, musicMode, updateMusicMix]);
+  }, [enabled, musicMode, stopAll, updateMusicMix]);
 
   useEffect(() => {
     if (!enabled) return;
     const unlockAudio = () => {
+      if (!enabledRef.current) return;
+      unlockedRef.current = true;
       try {
         if (audioAllowed()) {
-          const context = contextRef.current ?? new AudioContext();
-          contextRef.current = context;
-          void context.resume();
+          if (process.env.NEXT_PUBLIC_E2E !== 'true') {
+            const context = contextRef.current ?? new AudioContext();
+            contextRef.current = context;
+            effectsBusRef.current ??= createStadiumBus(context);
+            void context.resume().catch(() => undefined);
+            updateMusicMix();
+          }
           if (musicModeRef.current !== 'off')
             void backgroundRef.current?.play().catch(() => undefined);
-        }
-        if (speechAllowed() && 'speechSynthesis' in window) {
-          window.speechSynthesis.resume();
-          const silent = new SpeechSynthesisUtterance(' ');
-          silent.volume = 0;
-          window.speechSynthesis.speak(silent);
+          if (voiceRef.current && 'speechSynthesis' in window) {
+            window.speechSynthesis.resume();
+            const silent = new SpeechSynthesisUtterance(' ');
+            silent.volume = 0;
+            window.speechSynthesis.speak(silent);
+          }
         }
       } catch {
-        // Audio is optional and some browsers do not permit a warm-up.
+        // Audio is optional; unsupported browser audio never blocks the game.
       }
+      const sold = soldRef.current;
+      narratorRef.current?.hold(Boolean(sold && !sold.paused && !sold.ended));
     };
     window.addEventListener('pointerdown', unlockAudio, { once: true });
     window.addEventListener('keydown', unlockAudio, { once: true });
@@ -282,106 +321,180 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
       window.removeEventListener('pointerdown', unlockAudio);
       window.removeEventListener('keydown', unlockAudio);
     };
-  }, [enabled]);
+  }, [enabled, updateMusicMix]);
+
+  useEffect(() => {
+    updateMusicMix();
+    if (!enabled || !voicePreference || volume === 0) cancelNarration();
+  }, [enabled, voicePreference, volume, cancelNarration, updateMusicMix]);
 
   useEffect(
     () => () => {
-      if (announcementTimer.current !== null) window.clearTimeout(announcementTimer.current);
+      stopAll();
+      if (contextRef.current) void contextRef.current.close().catch(() => undefined);
+      contextRef.current = null;
+      effectsBusRef.current = null;
     },
-    [],
+    [stopAll],
   );
 
-  const play = useCallback(
-    (cue: Cue) => {
-      if (!enabled || !audioAllowed()) return;
-      if (process.env.NEXT_PUBLIC_E2E === 'true') {
-        (window as SoundTestWindow).__gavelCues?.push(cue);
-        return;
+  const play = useCallback((cue: SoundCue) => {
+    if (!enabledRef.current || !unlockedRef.current || volumeRef.current === 0 || !audioAllowed())
+      return;
+    if (process.env.NEXT_PUBLIC_E2E === 'true') {
+      (window as SoundTestWindow).__gavelCues?.push(cue);
+      return;
+    }
+    try {
+      const context = contextRef.current ?? new AudioContext();
+      contextRef.current = context;
+      const bus = effectsBusRef.current ?? createStadiumBus(context);
+      effectsBusRef.current = bus;
+      bus.gain.value = volumeRef.current;
+      void context
+        .resume()
+        .then(() => {
+          if (enabledRef.current) playStadiumCue(context, bus, cue);
+        })
+        .catch(() => undefined);
+    } catch {
+      // Every cue also has a visible counterpart.
+    }
+  }, []);
+
+  useEffect(() => {
+    const broadcast = (event: Event) => {
+      const detail = (event as CustomEvent<BroadcastAudioEvent>).detail;
+      if (!detail?.id || broadcastHistory.current.has(detail.id)) return;
+      broadcastHistory.current.add(detail.id);
+      activeBroadcast.current = detail.id;
+      if (broadcastHistory.current.size > 200) {
+        const oldest = broadcastHistory.current.values().next().value;
+        if (oldest) broadcastHistory.current.delete(oldest);
       }
-      try {
-        const context = contextRef.current ?? new AudioContext();
-        contextRef.current = context;
-        void context.resume().then(() => playPattern(context, cue));
-      } catch {
-        // Audio is enhancement only; visual state always communicates the same event.
-      }
-    },
-    [enabled],
-  );
+      play(detail.cue);
+      if (detail.message) announce(detail.message, detail.delayMs ?? 180);
+      else if (detail.cue === 'transition') cancelNarration();
+    };
+    const stopBroadcast = () => {
+      // A fresh presentation after unmount/replay may narrate again. Duplicate events
+      // during the same presentation are still ignored (including snapshot updates).
+      if (activeBroadcast.current) broadcastHistory.current.delete(activeBroadcast.current);
+      activeBroadcast.current = null;
+      cancelNarration();
+    };
+    window.addEventListener(BROADCAST_AUDIO_EVENT, broadcast);
+    window.addEventListener(BROADCAST_CANCEL_EVENT, stopBroadcast);
+    return () => {
+      window.removeEventListener(BROADCAST_AUDIO_EVENT, broadcast);
+      window.removeEventListener(BROADCAST_CANCEL_EVENT, stopBroadcast);
+    };
+  }, [announce, cancelNarration, play]);
 
   useEffect(() => {
     if (!moment || playedMoment.current === moment.id) return;
     playedMoment.current = moment.id;
-    const cue: Cue =
-      moment.kind === 'complete' ? 'winner' : moment.kind === 'opened' ? 'reveal' : moment.kind;
+    // The winner sting belongs to the visible podium, never RESULTS arrival before the reveal.
+    if (moment.kind !== 'checkpoint') {
+      play(
+        moment.kind === 'complete'
+          ? 'transition'
+          : moment.kind === 'opened'
+            ? 'reveal'
+            : moment.kind,
+      );
+    }
     if (
-      cue === 'outbid' ||
-      cue === 'sold' ||
-      cue === 'unsold' ||
-      cue === 'forced' ||
-      cue === 'checkpoint' ||
-      cue === 'winner' ||
-      cue === 'reveal' ||
-      cue === 'bid'
-    )
-      play(cue);
-    if (enabled && audioAllowed() && (moment.kind === 'sold' || moment.kind === 'forced')) {
+      enabledRef.current &&
+      unlockedRef.current &&
+      voiceRef.current &&
+      volumeRef.current > 0 &&
+      audioAllowed() &&
+      (moment.kind === 'sold' || moment.kind === 'forced')
+    ) {
       const sold = soldRef.current;
       if (sold) {
-        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        setDucked('speech', false);
-        if (announcementTimer.current !== null) {
-          window.clearTimeout(announcementTimer.current);
-          announcementTimer.current = null;
-        }
+        cancelNarration();
+        narratorRef.current?.hold(true);
         sold.currentTime = 0;
         setDucked('sold', true);
-        void sold.play().catch(() => {
+        if (soldWatchdog.current !== null) clearTimeout(soldWatchdog.current);
+        const release = () => {
+          if (soldWatchdog.current !== null) clearTimeout(soldWatchdog.current);
+          soldWatchdog.current = null;
           setDucked('sold', false);
-          flushAnnouncement();
-        });
+          narratorRef.current?.hold(!unlockedRef.current);
+        };
+        // A stalled media file cannot hold the following player announcement forever.
+        soldWatchdog.current = setTimeout(() => {
+          sold.pause();
+          release();
+        }, 5_000);
+        void sold.play().catch(release);
       }
     }
-    const announcement = announcementFor(moment);
+    const name = moment.lot?.candidate.commonName || moment.lot?.candidate.fullName;
     if (
-      enabled &&
-      speechAllowed() &&
-      announcement &&
-      announcedLot.current !== announcement.key &&
-      'speechSynthesis' in window
+      (moment.kind === 'reveal' || moment.kind === 'opened') &&
+      name &&
+      moment.lot &&
+      announcedLot.current !== moment.lot.id
     ) {
-      announcedLot.current = announcement.key;
-      pendingAnnouncement.current = announcement;
-      flushAnnouncement();
+      announcedLot.current = moment.lot.id;
+      const role = moment.lot.candidate.kind === 'MANAGER' ? 'manager' : 'player';
+      announce(`Next ${role} is ${name}.`);
     }
-  }, [enabled, flushAnnouncement, moment, play, setDucked]);
+  }, [announce, cancelNarration, moment, play, setDucked]);
 
   const toggle = useCallback(() => {
-    setEnabled((current) => {
+    setPreference((current) => {
       const next = !current;
-      enabledRef.current = next;
-      try {
-        window.localStorage.setItem(SOUND_KEY, next ? 'on' : 'off');
-        if (!next) {
-          backgroundRef.current?.pause();
-          soldRef.current?.pause();
-          if (announcementTimer.current !== null) {
-            window.clearTimeout(announcementTimer.current);
-            announcementTimer.current = null;
-          }
-          pendingAnnouncement.current = null;
-          duckReasons.current.clear();
-          if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        } else if (musicModeRef.current !== 'off') {
-          updateMusicMix();
-          void backgroundRef.current?.play().catch(() => undefined);
-        }
-      } catch {
-        // Local preference persistence is optional.
+      enabledRef.current = roomDefault && next;
+      persist(SOUND_KEY, next ? 'on' : 'off');
+      if (!next) stopAll();
+      return next;
+    });
+  }, [roomDefault, stopAll]);
+
+  const toggleVoice = useCallback(() => {
+    setVoicePreference((current) => {
+      const next = !current;
+      voiceRef.current = next;
+      persist(VOICE_KEY, next ? 'on' : 'off');
+      if (!next) {
+        cancelNarration();
+        soldRef.current?.pause();
+        if (soldWatchdog.current !== null) clearTimeout(soldWatchdog.current);
+        soldWatchdog.current = null;
+        setDucked('sold', false);
       }
       return next;
     });
-  }, [updateMusicMix]);
+  }, [cancelNarration, setDucked]);
 
-  return { enabled, toggle, play };
+  const setVolume = useCallback(
+    (value: number) => {
+      if (!Number.isFinite(value)) return;
+      const next = Math.max(0, Math.min(1, value));
+      volumeRef.current = next;
+      persist(VOLUME_KEY, String(next));
+      setVolumeState(next);
+      updateMusicMix();
+      if (next === 0) cancelNarration();
+    },
+    [cancelNarration, updateMusicMix],
+  );
+
+  return {
+    enabled,
+    available: roomDefault,
+    voiceEnabled: voicePreference,
+    voiceSupported,
+    speaking,
+    volume,
+    toggle,
+    toggleVoice,
+    setVolume,
+    play,
+  };
 }
