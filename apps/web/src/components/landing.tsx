@@ -11,6 +11,8 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { ArrowIcon, CheckIcon } from './icons';
 import { Brand } from './brand';
+import { FORMATION_PITCHES } from '@/lib/formations';
+import type { ConnectionState } from '@/hooks/use-gavel-room';
 
 const AVATARS = [
   { id: 'barcelona', label: 'FC Barcelona' },
@@ -29,16 +31,18 @@ type LandingMode = 'choice' | 'create' | 'join';
 
 interface LandingProps {
   busyAction: string | null;
+  connection: ConnectionState;
   suggestedCode?: string;
   onCreate: (input: CreateRoomInput) => Promise<{ ok: boolean }>;
   onJoin: (input: JoinRoomInput) => Promise<{ ok: boolean }>;
 }
 
-export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: LandingProps) {
+export function Landing({ busyAction, connection, suggestedCode, onCreate, onJoin }: LandingProps) {
   const [mode, setMode] = useState<LandingMode>(suggestedCode ? 'join' : 'choice');
   const [name, setName] = useState('');
   const [roomCode, setRoomCode] = useState(suggestedCode ?? '');
   const [avatar, setAvatar] = useState<(typeof AVATARS)[number]['id']>('barcelona');
+  const [formation, setFormation] = useState('4-3-3');
   const [validation, setValidation] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,63 +82,83 @@ export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: Landing
   };
 
   return (
-    <main className="landing" data-testid="landing-screen">
-      <div className="stadium-lines" />
-      <div className="landing__beam landing__beam--left" />
-      <div className="landing__beam landing__beam--right" />
-      <header className="landing__header">
+    <main className="transfer-home" data-testid="landing-screen">
+      <header className="transfer-nav">
         <Brand />
-        <span className="live-chip">
-          <i /> LIVE MULTIPLAYER
+        <a href="#playbook">
+          THE PLAYBOOK <span>↗</span>
+        </a>
+        <span className={`service-status service-status--${connection}`} role="status">
+          <i />{' '}
+          {connection === 'online'
+            ? 'CONNECTED · READY TO PLAY'
+            : connection === 'offline'
+              ? 'SERVER UNAVAILABLE · RETRYING'
+              : 'CONNECTING TO THE MARKET'}
         </span>
       </header>
 
-      <section className="hero">
-        <div className="hero__stage">
-          <div className="hero__copy">
-            <h1>
-              BUILD YOUR XI.
-              <br />
-              <em>OWN THE MARKET.</em>
-            </h1>
-            <p className="hero__lede">Draft. Bid. Build. Win.</p>
-            <div className="hero__proof" aria-label="Game features">
-              <span>
-                <CheckIcon /> 2–8 DIRECTORS
-              </span>
-              <span>
-                <CheckIcon /> REAL-TIME AUCTIONS
-              </span>
-            </div>
+      <section className="transfer-hero">
+        <div className="transfer-intro">
+          <p className="transfer-kicker">
+            <span /> THE BEAUTIFUL GAME. YOUR RULES.
+          </p>
+          <h1>
+            BUILD THE XI.
+            <br />
+            <em>BREAK THE BANK.</em>
+          </h1>
+          <p className="transfer-description">
+            Big names. Bigger decisions. Take the hot seat in a live football auction and build a
+            squad worth fighting for.
+          </p>
+          <a className="transfer-enter-link" href="#enter-market">
+            ENTER THE MARKET <span>↘</span>
+          </a>
+          <div className="transfer-facts">
+            <span>
+              <b>02–08</b> DIRECTORS
+            </span>
+            <span>
+              <b>11 + 1</b> PLAYERS & MANAGER
+            </span>
+            <span>
+              <b>100</b> RATING METRICS
+            </span>
           </div>
-
-          <figure className="cover-athlete" aria-label="Cover athlete Lamine Yamal">
-            <Image
-              alt="Lamine Yamal celebrating with the world championship trophy"
-              className="cover-athlete__image"
-              height={1750}
-              priority
-              sizes="(max-width: 760px) 88vw, 52vw"
-              src="/athletes/lamine-yamal-cover.png"
-              width={1400}
-            />
-            <div className="cover-athlete__stats" aria-label="Lamine Yamal cover profile">
-              <span>
-                <small>ROLE</small>
-                <b>RIGHT WINGER</b>
-              </span>
-              <span>
-                <small>CLUB</small>
-                <b>BARCELONA</b>
-              </span>
-              <span>
-                <small>STATUS</small>
-                <b>WORLD CHAMPION</b>
-              </span>
-            </div>
-          </figure>
         </div>
+        <figure className="transfer-cover">
+          <span className="transfer-cover__edition">THE TRANSFER ROOM / GXI</span>
+          <span className="transfer-cover__type" aria-hidden="true">
+            XI
+          </span>
+          <Image
+            alt="Gavel XI cover athlete Lamine Yamal with a trophy"
+            className="transfer-cover__image"
+            height={1750}
+            priority
+            sizes="(max-width: 760px) 90vw, 45vw"
+            src="/athletes/lamine-yamal-cover.png"
+            width={1400}
+          />
+          <figcaption>
+            <span>THE NEXT GENERATION</span>
+            <strong>
+              LAMINE
+              <br />
+              YAMAL<span>↗</span>
+            </strong>
+            <small>RIGHT WINGER / BARCELONA</small>
+          </figcaption>
+          <span className="transfer-cover__seal">
+            ONE ROOM.
+            <br />
+            ALL TO PLAY FOR.
+          </span>
+        </figure>
+      </section>
 
+      <section id="enter-market" className="transfer-workspace" aria-label="Enter the auction">
         <div className="entry-shell">
           <div className="entry-shell__topline">
             <span>
@@ -148,14 +172,17 @@ export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: Landing
           </div>
           {mode === 'choice' ? (
             <div className="entry-choice">
-              <p className="entry-choice__intro">Create or join.</p>
+              <h2 className="entry-choice__intro">Your seat is waiting.</h2>
+              <p className="entry-description">
+                Bring your football knowledge. Invite your rivals. We’ll bring the gavel.
+              </p>
               <button
                 className="action-card action-card--primary"
                 data-testid="create-room-open"
                 type="button"
                 onClick={() => setMode('create')}
               >
-                <span className="action-card__index">A</span>
+                <span className="action-card__index">01</span>
                 <span>
                   <b>CREATE ROOM</b>
                   <small>Host the auction</small>
@@ -168,7 +195,7 @@ export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: Landing
                 type="button"
                 onClick={() => setMode('join')}
               >
-                <span className="action-card__index">B</span>
+                <span className="action-card__index">02</span>
                 <span>
                   <b>JOIN ROOM</b>
                   <small>Enter with a code</small>
@@ -176,7 +203,7 @@ export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: Landing
                 <ArrowIcon />
               </button>
               <div className="entry-choice__rule">
-                <span /> THE MARKET WAITS FOR NO ONE <span />
+                <span /> NO ACCOUNT. JUST FOOTBALL. <span />
               </div>
             </div>
           ) : (
@@ -270,12 +297,84 @@ export function Landing({ busyAction, suggestedCode, onCreate, onJoin }: Landing
             </form>
           )}
         </div>
+        <aside className="tactics-preview">
+          <header>
+            <div>
+              <p className="transfer-kicker">YOUR VISION STARTS HERE</p>
+              <h2>Pick your shape.</h2>
+            </div>
+            <span className="preview-label">FORMATION PREVIEW</span>
+          </header>
+          <div className="formation-switch" aria-label="Preview a formation">
+            {['4-3-3', '4-4-2', '3-5-2'].map((value) => (
+              <button
+                type="button"
+                key={value}
+                aria-pressed={formation === value}
+                onClick={() => setFormation(value)}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+          <div className="tactics-pitch" aria-label={`${formation} formation preview`}>
+            <div className="tactics-pitch__circle" />
+            <div className="tactics-pitch__box" />
+            {FORMATION_PITCHES[formation]?.map((slot, index) => (
+              <span
+                className="tactics-player"
+                key={index}
+                style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+              >
+                <b>{String(index + 1).padStart(2, '0')}</b>
+                <small>{slot.label}</small>
+              </span>
+            ))}
+          </div>
+          <footer>
+            <CheckIcon />
+            <span>Explore your shape. The host sets the match formation in the lobby.</span>
+          </footer>
+        </aside>
       </section>
 
-      <footer className="landing__footer">
-        <span>© GAVEL XI</span>
-        <span className="landing__footer-line" />
-        <span>PLAYER PROFILES · MARKET VALUES · SEEDED FAIRNESS</span>
+      <section className="transfer-playbook" id="playbook">
+        <header>
+          <p className="transfer-kicker">THE PLAYBOOK</p>
+          <h2>
+            A football mind.
+            <br />
+            <em>A poker face.</em>
+          </h2>
+        </header>
+        <article>
+          <span>01 / ASSEMBLE</span>
+          <h3>Make it a rivalry.</h3>
+          <p>
+            Create a private room. Choose your budget and formation, then send the invite to your
+            friends.
+          </p>
+        </article>
+        <article>
+          <span>02 / OUTBID</span>
+          <h3>Read the room.</h3>
+          <p>
+            Bid live as each player is revealed. Save for a superstar or build balance. Every euro
+            counts.
+          </p>
+        </article>
+        <article>
+          <span>03 / PROVE IT</span>
+          <h3>Let football decide.</h3>
+          <p>
+            Eleven players. One manager. See how your squad stacks up across 100 football metrics.
+          </p>
+        </article>
+      </section>
+      <footer className="transfer-footer">
+        <Brand />
+        <span>BUILD THE XI. BREAK THE BANK.</span>
+        <a href="#playbook">HOW IT WORKS ↑</a>
       </footer>
     </main>
   );

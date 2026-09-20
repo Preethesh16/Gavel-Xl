@@ -131,3 +131,69 @@ test('room actions wait for player identity to resume after a disconnect', async
     await host.context.close();
   }
 });
+
+test('a malformed saved session does not block a fresh room on the same connection', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'gavel-xi:session',
+      JSON.stringify({ sessionToken: 'expired-token', memberId: 'old-member', roomCode: 'ABCDEF' }),
+    );
+  });
+  await page.goto('/');
+  await expect(page.getByTestId('landing-screen')).toBeVisible();
+  await page.getByTestId('create-room-open').click();
+  await page.getByTestId('create-name-input').fill('FreshDirector');
+  await page.getByTestId('create-room-submit').click();
+  await expect(page.getByTestId('lobby-screen')).toBeVisible();
+});
+
+test('formation preview responds to keyboard and pointer selection', async ({ page }) => {
+  await page.goto('/');
+  const shape = page.getByRole('button', { name: '3-5-2', exact: true });
+  await shape.click();
+  await expect(shape).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('3-5-2 formation preview')).toBeVisible();
+  const alternate = page.getByRole('button', { name: '4-4-2', exact: true });
+  await alternate.focus();
+  await page.keyboard.press('Enter');
+  await expect(alternate).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.tactics-player')).toHaveCount(11);
+});
+
+test('every budget supports all formations and the custom amount stays synchronized', async ({
+  browser,
+}) => {
+  const host = await newDirector(browser, 'TacticsHost');
+  const guest = await newDirector(browser, 'TacticsGuest');
+  try {
+    const code = await createRoom(host.page, host.name);
+    await joinRoom(guest.page, code, guest.name);
+    for (const budget of [500, 600, 750, 1000]) {
+      await host.page.getByTestId(`settings-budget-${budget}`).click();
+      await expect(host.page.getByTestId('settings-custom-budget')).toHaveValue(String(budget));
+      for (const formation of [
+        '4-2-1-3',
+        '4-3-3',
+        '4-2-3-1',
+        '4-4-2',
+        '3-4-2-1',
+        '3-5-2',
+        '5-2-1-2',
+      ]) {
+        await host.page.getByTestId('settings-formation').selectOption(formation);
+        await expect(guest.page.getByTestId('settings-formation')).toHaveValue(formation);
+        await expect(host.page.getByLabel(`${formation} starting eleven`)).toBeVisible();
+        await expect(host.page.locator('.lobby-tactics .tactics-player')).toHaveCount(11);
+        await expect(host.page.getByTestId('settings-custom-budget')).toHaveValue(String(budget));
+      }
+    }
+    await host.page.getByTestId('settings-custom-budget').focus();
+    await host.page.getByTestId('settings-formation').selectOption('4-3-3');
+    await expect(guest.page.getByTestId('settings-custom-budget')).toHaveValue('1000');
+    expect([...host.runtimeErrors, ...guest.runtimeErrors]).toEqual([]);
+  } finally {
+    await closeDirectors([host, guest]);
+  }
+});

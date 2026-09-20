@@ -1,0 +1,477 @@
+/* Scouting dossier replaces the original foil card and full-screen outcome burst. */
+.scout-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: min(500px, 100%);
+  border: 1px solid #fff4dc38;
+  border-radius: 16px;
+  background: #fff4dc;
+  color: #001d4a;
+  box-shadow: 0 25px 70px #0005;
+  animation: dossier-arrive 0.75s cubic-bezier(0.18, 0.75, 0.22, 1) both;
+}
+.scout-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  border-bottom: 1px solid #001d4a20;
+}
+.scout-card__header b {
+  font: 700 15px monospace;
+  letter-spacing: 0;
+}
+.scout-card__visual {
+  height: 250px;
+  position: relative;
+  background: radial-gradient(ellipse at 60% 90%, #2861a7, #001d4a 75%);
+  overflow: hidden;
+  color: var(--paper);
+}
+.scout-card__visual::before {
+  content: '';
+  position: absolute;
+  inset: 18px;
+  border: 1px solid #fff4dc17;
+  background: linear-gradient(90deg, transparent 49.8%, #fff4dc10 50%, transparent 50.2%);
+}
+.scout-card__position {
+  position: absolute;
+  z-index: 2;
+  left: 22px;
+  top: 24px;
+  display: grid;
+  gap: 5px;
+}
+.scout-card__position strong {
+  font: 900 48px/1 var(--display);
+  color: var(--acid);
+  letter-spacing: -0.06em;
+}
+.scout-card__position span {
+  font-size: 7px;
+  letter-spacing: 0.15em;
+}
+.scout-card__photo {
+  position: absolute;
+  inset: 14px 12% 0 23%;
+  animation: dossier-portrait 0.65s 0.6s both;
+}
+.scout-card__photo > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom;
+  filter: drop-shadow(0 12px 16px #0004);
+}
+.scout-card__photo .card-silhouette {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.scout-card__country {
+  position: absolute;
+  z-index: 2;
+  left: 22px;
+  bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+}
+.scout-card__country b {
+  font-size: 9px;
+  font-weight: 500;
+  max-width: 150px;
+}
+.scout-card__rating {
+  position: absolute;
+  z-index: 2;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  justify-items: center;
+  background: var(--acid);
+  color: var(--ink);
+  padding: 10px 12px;
+  border-radius: 7px;
+  transform: rotate(4deg);
+}
+.scout-card__rating b {
+  font: 900 32px/1 var(--display);
+}
+.scout-card__rating span {
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+}
+.scout-card__identity {
+  padding: 21px 22px 14px;
+  animation: dossier-details 0.5s 0.75s both;
+}
+.scout-card__identity > p {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  margin: 0 0 9px;
+  color: #aa151b;
+}
+.scout-card__identity h2 {
+  font: 900 clamp(26px, 3vw, 42px)/1 var(--display);
+  letter-spacing: -0.05em;
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+.scout-card__club {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.scout-card__club img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+.scout-card__club strong {
+  font-size: 13px;
+}
+.scout-card__bio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 15px;
+  margin-top: 12px;
+  font-size: 9px;
+  color: #415471;
+}
+.scout-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 14px 22px;
+  border-top: 1px solid #001d4a1c;
+  border-bottom: 1px solid #001d4a1c;
+}
+.scout-card__metrics > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+.scout-card__metrics span {
+  font-size: 9px;
+}
+.scout-card__metrics b {
+  font: 800 16px var(--display);
+}
+.scout-card__metrics meter {
+  width: 100%;
+  height: 5px;
+  grid-column: 1/-1;
+  appearance: none;
+  background: #001d4a18;
+  border: 0;
+}
+.scout-card__metrics meter::-webkit-meter-bar {
+  background: #001d4a18;
+  border: 0;
+  height: 5px;
+}
+.scout-card__metrics meter::-webkit-meter-optimum-value {
+  background: #003478;
+}
+.scout-card__metrics meter::-moz-meter-bar {
+  background: #003478;
+}
+.scout-card__prices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 18px 22px;
+  gap: 20px;
+}
+.scout-card__prices > div:last-child {
+  border-left: 1px solid #001d4a26;
+  padding-left: 20px;
+}
+.scout-card__prices span {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #415471;
+  line-height: 1.6;
+}
+.scout-card__prices strong {
+  display: block;
+  font: 800 25px var(--display);
+  margin-top: 5px;
+}
+.scout-card__prices > div:last-child strong {
+  color: #aa151b;
+}
+.scout-card__source {
+  border-top: 1px solid #001d4a20;
+  padding: 12px 22px;
+  background: #001d4a06;
+  font-size: 10px;
+  line-height: 1.7;
+}
+.scout-card__source summary {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+.scout-card__source p {
+  margin: 8px 0 0;
+}
+.scout-curtain {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: #003478;
+  color: var(--paper);
+  pointer-events: none;
+  animation: dossier-unseal 1.15s cubic-bezier(0.7, 0, 0.2, 1) forwards;
+}
+.scout-curtain::before,
+.scout-curtain::after {
+  content: '';
+  width: 60%;
+  height: 1px;
+  background: #f1bf0060;
+  margin: 22px;
+}
+.scout-curtain > span {
+  font-size: 10px;
+  letter-spacing: 0.25em;
+}
+.scout-curtain > b {
+  color: var(--acid);
+  font: 900 86px/1 var(--display);
+  margin: 18px;
+}
+.scout-curtain > small {
+  font: 9px monospace;
+  letter-spacing: 0.2em;
+}
+@keyframes dossier-arrive {
+  from {
+    opacity: 0;
+    transform: translateX(-35px) rotate(-3deg) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) rotate(0) scale(1);
+  }
+}
+@keyframes dossier-unseal {
+  0%,
+  38% {
+    clip-path: inset(0);
+  }
+  100% {
+    clip-path: inset(0 0 100% 0);
+    visibility: hidden;
+  }
+}
+@keyframes dossier-portrait {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(1.07);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes dossier-details {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.draft-progress {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 0 0 26px;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+.draft-progress > div {
+  display: flex;
+  flex: 1;
+  gap: 5px;
+}
+.draft-progress i {
+  flex: 1;
+  height: 4px;
+  background: #ffffff12;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+.draft-progress i.is-complete {
+  background: var(--acid);
+}
+.draft-progress i.is-current {
+  background: #fff4dc;
+  box-shadow: 0 0 12px #fff4dc50;
+}
+.draft-progress b {
+  color: var(--paper);
+}
+.deal-receipt {
+  position: fixed;
+  z-index: 160;
+  right: 28px;
+  bottom: 28px;
+  width: min(400px, calc(100% - 32px));
+  background: var(--paper);
+  color: var(--ink);
+  padding: 24px 24px 20px 78px;
+  border-radius: 12px;
+  border-top: 5px solid var(--acid);
+  box-shadow: 0 18px 80px #0008;
+  pointer-events: none;
+  animation: receipt-slide 0.5s cubic-bezier(0.18, 0.8, 0.2, 1) both;
+}
+.deal-receipt__mark {
+  position: absolute;
+  left: 24px;
+  top: 27px;
+  font-size: 30px;
+  color: #003478;
+}
+.deal-receipt__eyebrow {
+  font-size: 8px;
+  letter-spacing: 0.15em;
+}
+.deal-receipt h2 {
+  font: 900 32px/1 var(--display);
+  margin: 9px 0 14px;
+  letter-spacing: -0.04em;
+}
+.deal-receipt > strong {
+  display: block;
+  font-size: 18px;
+}
+.deal-receipt p {
+  font-size: 12px;
+}
+.deal-receipt p b {
+  color: var(--ink) !important;
+}
+.deal-receipt em {
+  display: block;
+  font: 800 27px var(--display);
+  color: #aa151b;
+  margin: 10px 0;
+}
+.deal-receipt > small {
+  display: block;
+  font-size: 8px;
+  border-top: 1px dashed #001d4a45;
+  padding-top: 12px;
+  margin-top: 16px;
+}
+.deal-receipt--unsold {
+  border-top-color: #aa151b;
+}
+@keyframes receipt-slide {
+  from {
+    opacity: 0;
+    transform: translateY(60px) rotate(3deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lobby-tactics {
+  padding: 0 20px 20px;
+}
+.lobby-tactics .tactics-pitch {
+  height: 175px;
+}
+.lobby-tactics .tactics-player b {
+  font-size: 8px;
+}
+.lobby-tactics > p {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+  margin: 12px 0 0;
+}
+.lobby-tactics > p b {
+  color: var(--paper);
+}
+@media (max-width: 760px) {
+  .scout-card {
+    max-width: 460px;
+  }
+  .scout-card__visual {
+    height: 230px;
+  }
+  .draft-progress {
+    gap: 12px;
+  }
+  .draft-progress > span {
+    display: none;
+  }
+  .deal-receipt {
+    right: 16px;
+    bottom: 16px;
+    padding: 20px 20px 18px 65px;
+  }
+  .deal-receipt__mark {
+    left: 20px;
+  }
+  .lobby-tactics {
+    padding-inline: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scout-curtain {
+    display: none;
+  }
+  .scout-card,
+  .scout-card__photo,
+  .scout-card__identity,
+  .deal-receipt {
+    animation: none;
+  }
+}
+
+/* The dossier reveal replaces the old oversized animated stage halo. */
+.auction-stage::before {
+  content: none;
+}
+.auction-lights {
+  display: none;
+}
+.timer-orb--paused span {
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+.bid-controls .safe-bid {
+  font-size: 10px;
+  white-space: normal;
+}

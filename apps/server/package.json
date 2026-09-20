@@ -31,7 +31,11 @@
     "start": "node dist/main.js",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "prisma generate --schema prisma/schema.prisma",
+    "predev": "pnpm --filter @gavel-xi/game-engine... build",
+    "preview": "tsx src/preview.ts",
+    "prepreview": "pnpm --filter @gavel-xi/game-engine... build"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",

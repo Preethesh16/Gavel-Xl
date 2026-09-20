@@ -102,11 +102,15 @@ const configSchema = z
         message: 'The football-data.org provider requires FOOTBALL_DATA_ORG_KEY',
       });
     }
-    if (config.FOOTBALL_DATA_PROVIDER === 'catalog' && config.DATABASE_URL === undefined) {
+    if (
+      config.NODE_ENV === 'production' &&
+      config.FOOTBALL_DATA_PROVIDER === 'catalog' &&
+      config.DATABASE_URL === undefined
+    ) {
       context.addIssue({
         code: 'custom',
         path: ['DATABASE_URL'],
-        message: 'The catalog provider requires DATABASE_URL',
+        message: 'The production catalog provider requires DATABASE_URL',
       });
     }
     if (config.NODE_ENV === 'production' && config.FOOTBALL_DATA_PROVIDER === 'demo') {

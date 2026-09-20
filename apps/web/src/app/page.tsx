@@ -116,6 +116,7 @@ export default function Home() {
     return (
       <>
         <Landing
+          connection={game.connection}
           busyAction={game.busyAction}
           {...(suggestedCode ? { suggestedCode } : {})}
           onCreate={async (input) => {

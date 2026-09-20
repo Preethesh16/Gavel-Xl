@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import './globals.css';
+import './transfer-room.css';
+import './scouting-room.css';
 
 export const metadata: Metadata = {
   title: 'Gavel XI — Build the XI. Break the Bank.',
@@ -20,7 +22,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#080a09',
+  themeColor: '#001d4a',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

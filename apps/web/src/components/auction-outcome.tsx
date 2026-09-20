@@ -28,13 +28,16 @@ export function AuctionOutcome({ moment, room }: { moment: AuctionMoment | null;
   const name = lot?.candidate.commonName ?? lot?.candidate.fullName ?? '';
   return (
     <div
-      className={`auction-outcome auction-outcome--${moment.kind}`}
+      key={moment.id}
+      className={`deal-receipt deal-receipt--${moment.kind}`}
       role="status"
       aria-live="assertive"
       data-testid={`${moment.kind}-animation`}
     >
-      <div className="outcome-rays" />
-      <span className="outcome-kicker">
+      <span className="deal-receipt__mark" aria-hidden="true">
+        {moment.kind === 'unsold' ? '↩' : '✓'}
+      </span>
+      <span className="deal-receipt__eyebrow">
         {moment.kind === 'forced'
           ? 'ONLY ONE DIRECTOR LEFT'
           : moment.kind === 'unsold'
@@ -52,7 +55,7 @@ export function AuctionOutcome({ moment, room }: { moment: AuctionMoment | null;
       {moment.amountEUR !== undefined ? <em>{formatMoney(moment.amountEUR, true)}</em> : null}
       <small>
         {moment.kind === 'forced'
-          ? 'NO MORE RUNNING. THIS ONE’S YOURS.'
+          ? 'POSITION FILLED · SQUAD UPDATED'
           : moment.kind === 'unsold'
             ? 'MOVED TO THE UNSOLD VAULT'
             : 'DEAL COMPLETE'}

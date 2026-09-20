@@ -61,6 +61,9 @@ cp .env.example .env
 pnpm dev
 ```
 
+Installation generates the Prisma client automatically. The backend development command builds its
+shared contracts and game engine before starting, including on a fresh checkout.
+
 Open [http://localhost:3000](http://localhost:3000). The realtime service listens on port 4000 and
 exposes a health endpoint at [http://localhost:4000/health](http://localhost:4000/health).
 
@@ -77,6 +80,14 @@ are temporarily unreachable, the health endpoint reports `in-memory-fallback` an
 available for that process; the next healthy deployment returns to durable mode. Database migrations
 remain an explicit deployment step. The server CLI loads the repository-root `.env`; an explicitly
 exported process variable takes precedence.
+
+### Real-player local preview
+
+Run `pnpm --filter @gavel-xi/server preview` with the web app on port 3000. This uses the
+existing open real-player catalog, keeps a local snapshot under `apps/server/data`, and
+runs rooms in memory without using managed databases or paid football APIs. The first run
+needs internet access to create the snapshot; later runs reuse it. Stop another backend on
+port 4000 first. Browser tests deliberately continue using their isolated demo fixtures.
 
 ## Environment
 

@@ -133,99 +133,116 @@ export const PlayerCard = memo(function PlayerCard({
         ? 'ESTIMATED TRANSFER VALUE'
         : 'GAVEL XI ESTIMATE';
 
+  const metrics: [string, number][] = isManager
+    ? [
+        ['Possession', player.tactics?.possession ?? 0],
+        ['Pressing', player.tactics?.pressing ?? 0],
+        ['Flexibility', player.tactics?.tacticalFlexibility ?? 0],
+      ]
+    : lot.position === 'GK'
+      ? [
+          ['Defending', player.role.defending],
+          ['Aerial', player.role.aerial],
+          ['Composure', player.role.composure],
+        ]
+      : ['CB', 'LB', 'RB', 'LWB', 'RWB', 'DM'].includes(lot.position)
+        ? [
+            ['Defending', player.role.defending],
+            ['Physical', player.role.physical],
+            ['Passing', player.role.passing],
+          ]
+        : ['CM', 'AM'].includes(lot.position)
+          ? [
+              ['Passing', player.role.passing],
+              ['Vision', player.role.creativity],
+              ['Technique', player.role.technique],
+            ]
+          : [
+              ['Finishing', player.role.finishing],
+              ['Pace', player.role.pace],
+              ['Technique', player.role.technique],
+            ];
+
   return (
-    <article
-      className={`player-card player-card--${phase.toLowerCase()} ${lot.isReturning ? 'player-card--returning' : ''}`}
-      data-testid="player-card"
-    >
-      <span className="player-card__cut player-card__cut--one" />
-      <span className="player-card__cut player-card__cut--two" />
-      <div className="player-card__rail">
-        <span>LOT {String(lot.sequence).padStart(2, '0')}</span>
-        <span>{player.season}</span>
+    <article className={`scout-card scout-card--${phase.toLowerCase()}`} data-testid="player-card">
+      <div className="scout-curtain" aria-hidden="true">
+        <span>SCOUTING REPORT</span>
+        <b>{lot.position}</b>
+        <small>IDENTITY CONFIRMED</small>
       </div>
-      <div className="player-card__meta">
-        <div className="position-stamp" data-testid="current-position">
+      <header className="scout-card__header">
+        <span>{lot.isReturning ? 'BACK ON THE MARKET' : 'SCOUTING DOSSIER'}</span>
+        <b>#{String(lot.sequence).padStart(3, '0')}</b>
+      </header>
+      <div className="scout-card__visual">
+        <div className="scout-card__position" data-testid="current-position">
           <strong>{lot.position}</strong>
-          <span>POSITION</span>
+          <span>{isManager ? 'HEAD COACH' : 'DRAFT POSITION'}</span>
         </div>
-        <div className="identity-stamp">
-          <span
-            aria-label={`Nationality: ${player.nationality}`}
-            data-testid="nationality-flag"
-            title={player.nationality}
-          >
-            {countryFlag(player.nationality, player.nationalityCode)}
-          </span>
-          <span aria-label={`Club: ${player.club}`} title={player.club}>
-            {!crestFailed && player.clubImageUrl ? (
-              <img src={player.clubImageUrl} alt="" onError={() => setCrestFailed(true)} />
-            ) : (
-              initials(player.club)
-            )}
-          </span>
-        </div>
-      </div>
-      <div className="player-card__portrait">
-        <div className="portrait-halo" />
-        {!imageFailed && player.imageUrl ? (
-          // Provider URLs are frozen into the room snapshot; layout has a complete fallback if one expires.
-          <img
-            src={player.imageUrl}
-            alt=""
-            data-testid="card-portrait"
-            onError={() => setImageFailed(true)}
-          />
-        ) : (
-          <ImageFallback name={player.commonName || player.fullName} />
-        )}
-        <div className="portrait-fade" />
-      </div>
-      <div className="player-card__copy">
-        <p className="player-card__kicker">
-          {isManager ? 'HEAD COACH' : `${lot.position} · LIVE AUCTION CARD`}
-        </p>
-        <h2 data-testid="revealed-player-name" title={player.commonName || player.fullName}>
-          {player.commonName || player.fullName}
-        </h2>
-        <p className="player-card__club-name" data-testid="card-club-name" title={player.club}>
-          {player.club}
-        </p>
-        <div className="player-card__bio" data-testid="player-details">
-          <span>{isManager ? 'TACTICAL LEAD' : `${player.age} YEARS`}</span>
-          <span>{player.season}</span>
-          <span>{player.league}</span>
-        </div>
-        <div className="player-card__numbers">
-          <div>
-            <span>{marketLabel}</span>
-            <strong>{formatMoney(player.valuation.valueEUR, true)}</strong>
-          </div>
-          <i />
-          <div>
-            <span>OPENING BID</span>
-            <strong>{formatMoney(lot.openingBidEUR, true)}</strong>
-          </div>
-        </div>
-      </div>
-      <div className="player-card__form">
-        <span>
-          FORM <b data-testid="card-form-rating">{formRating}</b>
-        </span>
-        <div>
-          <i style={{ width: `${formRating}%` }} />
-        </div>
-        <span className="last-five">
-          {player.lastFive.slice(0, 5).map((value, index) => (
-            <i
-              className={value >= 70 ? 'is-win' : value >= 50 ? 'is-draw' : ''}
-              key={`${value}-${index}`}
+        <div className="scout-card__photo">
+          {!imageFailed && player.imageUrl ? (
+            <img
+              src={player.imageUrl}
+              alt={player.commonName || player.fullName}
+              data-testid="card-portrait"
+              onError={() => setImageFailed(true)}
             />
-          ))}
+          ) : (
+            <ImageFallback name={player.commonName || player.fullName} />
+          )}
+        </div>
+        <span
+          className="scout-card__country"
+          aria-label={`Nationality: ${player.nationality}`}
+          data-testid="nationality-flag"
+        >
+          {countryFlag(player.nationality, player.nationalityCode)} <b>{player.nationality}</b>
         </span>
+        <div className="scout-card__rating">
+          <b data-testid="card-form-rating">{formRating}</b>
+          <span>FORM INDEX</span>
+        </div>
       </div>
-      <details className="player-card__source">
-        <summary>DATA PROVENANCE</summary>
+      <div className="scout-card__identity">
+        <p>{isManager ? 'THE MIND BEHIND YOUR XI' : 'YOUR NEXT SIGNING?'}</p>
+        <h2 data-testid="revealed-player-name">{player.commonName || player.fullName}</h2>
+        <div className="scout-card__club">
+          {!crestFailed && player.clubImageUrl ? (
+            <img src={player.clubImageUrl} alt="" onError={() => setCrestFailed(true)} />
+          ) : (
+            <span aria-hidden="true">◇</span>
+          )}
+          <strong data-testid="card-club-name">{player.club}</strong>
+        </div>
+        <div className="scout-card__bio" data-testid="player-details">
+          <span>{isManager ? 'MANAGER' : `${player.age} YEARS`}</span>
+          <span>{player.season}</span>
+          <span>{player.positions.join(' / ')}</span>
+        </div>
+      </div>
+      <section className="scout-card__metrics" aria-label="Estimated role profile">
+        {metrics.map(([label, value]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <b>{Math.round(value)}</b>
+            <meter min={0} max={100} value={value} aria-label={label} />
+          </div>
+        ))}
+      </section>
+      <div className="scout-card__prices">
+        <div>
+          <span>{marketLabel}</span>
+          <strong>{formatMoney(player.valuation.valueEUR, true)}</strong>
+        </div>
+        <div>
+          <span>OPENING BID</span>
+          <strong>{formatMoney(lot.openingBidEUR, true)}</strong>
+        </div>
+      </div>
+      <details className="scout-card__source">
+        <summary>
+          PLAYER DATA & PROFILE ESTIMATES <span>+</span>
+        </summary>
         <p>
           {player.dataSource} · Updated {new Date(player.dataUpdatedAt).toLocaleDateString('en-GB')}
         </p>
@@ -233,6 +250,7 @@ export const PlayerCard = memo(function PlayerCard({
           {player.valuation.source} · Confidence{' '}
           {Math.round(player.valuation.confidence * (player.valuation.confidence <= 1 ? 100 : 1))}%
         </p>
+        <p>Role and form indices are game estimates, not verified live match statistics.</p>
       </details>
     </article>
   );

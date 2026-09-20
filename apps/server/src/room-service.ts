@@ -284,6 +284,8 @@ export class RoomService {
       if (directors.length < 2) {
         throw new DomainError('TOO_FEW_PLAYERS', 'At least two Sporting Directors are required.');
       }
+      if (directors.some((member) => !member.isConnected))
+        throw new DomainError('NOT_READY', 'Every director must be connected before kick-off.');
       const waiting = directors.filter((member) => !member.isHost && !member.isReady);
       if (waiting.length > 0)
         throw new DomainError('NOT_READY', 'Every guest must be ready before kick-off.');

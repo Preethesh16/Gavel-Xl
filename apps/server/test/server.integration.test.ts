@@ -115,6 +115,71 @@ async function createTwoPlayerRoom(url: string): Promise<{
 }
 
 describe('authoritative realtime server', () => {
+  it('preserves billion-euro budgets and other rules across partial formation updates', async () => {
+    const { url } = await fixture();
+    const { host, hostSession } = await createTwoPlayerRoom(url);
+    const roomCode = hostSession.room.code;
+    requireData(
+      await emitAck<RoomView>(host, 'room:settings', {
+        roomCode,
+        settings: {
+          budgetEUR: 1_000_000_000,
+          auctionTimerSeconds: 30,
+          bidIncrementEUR: 5_000_000,
+          budgetMode: 'STRICT',
+        },
+      }),
+    );
+    for (const formation of ['4-3-3', '3-5-2', '4-4-2', '5-2-1-2']) {
+      const room = requireData(
+        await emitAck<RoomView>(host, 'room:settings', { roomCode, settings: { formation } }),
+      );
+      expect(room.settings).toMatchObject({
+        formation,
+        budgetEUR: 1_000_000_000,
+        auctionTimerSeconds: 30,
+        bidIncrementEUR: 5_000_000,
+        budgetMode: 'STRICT',
+      });
+      expect(room.members.every((member) => member.budgetEUR === 1_000_000_000)).toBe(true);
+    }
+    const room = requireData(
+      await emitAck<RoomView>(host, 'room:settings', {
+        roomCode,
+        settings: { budgetEUR: 600_000_000 },
+      }),
+    );
+    expect(room.settings.formation).toBe('5-2-1-2');
+  });
+
+  it('blocks kickoff with a ready but disconnected director and allows it after resume', async () => {
+    const { server, url } = await fixture();
+    const { host, guest, hostSession, guestSession } = await createTwoPlayerRoom(url);
+    const roomCode = hostSession.room.code;
+    requireData(await emitAck<RoomView>(guest, 'room:ready', { roomCode, ready: true }));
+    guest.disconnect();
+    await expect
+      .poll(
+        async () =>
+          (await server.roomService.getRoom(roomCode)).members.find(
+            (member) => member.id === guestSession.memberId,
+          )?.isConnected,
+      )
+      .toBe(false);
+    const rejected = await emitAck<RoomView>(host, 'game:start', { roomCode });
+    expect(rejected.ok).toBe(false);
+    expect(rejected.error?.code).toBe('NOT_READY');
+    expect((await server.roomService.getRoom(roomCode)).phase).toBe('LOBBY');
+    const reconnected = await connect(url);
+    requireData(
+      await emitAck<SessionPayload>(reconnected, 'room:resume', {
+        sessionToken: guestSession.sessionToken,
+      }),
+    );
+    const started = requireData(await emitAck<RoomView>(host, 'game:start', { roomCode }));
+    expect(started.phase).toBe('BIDDING');
+  });
+
   it('allows the canonical Vercel client origin for HTTP and Socket.IO', async () => {
     const { url } = await fixture();
     const origin = 'https://gavel-xl-web.vercel.app';

@@ -82,7 +82,21 @@ export const joinRoomSchema = z.object({
 
 export const readySchema = z.object({ ready: z.boolean() });
 
-export const updateSettingsSchema = roomSettingsSchema.partial().strict();
+// A patch must never materialize defaults for omitted fields. In Zod 4,
+// partial() around a defaulted field still supplies that default.
+export const updateSettingsSchema = z
+  .object({
+    formation: roomSettingsSchema.shape.formation.removeDefault().optional(),
+    budgetEUR: roomSettingsSchema.shape.budgetEUR.removeDefault().optional(),
+    bidIncrementEUR: roomSettingsSchema.shape.bidIncrementEUR.removeDefault().optional(),
+    auctionTimerSeconds: roomSettingsSchema.shape.auctionTimerSeconds.removeDefault().optional(),
+    revealSeconds: roomSettingsSchema.shape.revealSeconds.removeDefault().optional(),
+    antiSnipeSeconds: roomSettingsSchema.shape.antiSnipeSeconds.removeDefault().optional(),
+    soundEnabled: roomSettingsSchema.shape.soundEnabled.removeDefault().optional(),
+    budgetMode: roomSettingsSchema.shape.budgetMode.removeDefault().optional(),
+    formLookback: roomSettingsSchema.shape.formLookback.removeDefault().optional(),
+  })
+  .strict();
 
 export const bidSchema = z.object({
   roomCode: roomCodeSchema,

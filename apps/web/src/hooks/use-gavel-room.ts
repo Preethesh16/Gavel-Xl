@@ -177,6 +177,8 @@ export function useGavelRoom(): UseGavelRoomValue {
   // member identity, so room actions must wait for that handshake as well.
   const identityReadyRef = useRef<Promise<boolean>>(Promise.resolve(true));
   const momentId = useRef(0);
+  const settingsQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const pendingSettings = useRef(0);
   const serverUrl = useMemo(runtimeServerUrl, []);
 
   const acceptRoom = useCallback((nextRoom: RoomView) => {
@@ -301,13 +303,17 @@ export function useGavelRoom(): UseGavelRoomValue {
               if (resumeError || !ack?.ok || !ack.data) {
                 if (
                   ack?.error?.code === 'SESSION_INVALID' ||
+                  ack?.error?.code === 'BAD_PAYLOAD' ||
                   ack?.error?.code === 'ROOM_NOT_FOUND'
                 ) {
                   clearSession();
                   sessionRef.current = null;
+                  roomRef.current = null;
                   setMemberId(null);
                   setRoom(null);
                   setConnection('online');
+                  resolve(true);
+                  return;
                 } else {
                   setConnection('offline');
                   setNotice(
@@ -526,16 +532,37 @@ export function useGavelRoom(): UseGavelRoomValue {
   );
 
   const updateSettings = useCallback(
-    async (settings: Partial<RoomSettingsInput>) => {
+    (settings: Partial<RoomSettingsInput>): Promise<ActionResult> => {
       const activeRoom = roomRef.current;
-      if (!activeRoom) return { ok: false, message: 'Join a room first.' };
-      return run(
-        'settings',
-        () => emitAck<RoomView>('room:settings', { roomCode: activeRoom.code, settings }),
-        acceptRoom,
-      );
+      if (!activeRoom) return Promise.resolve({ ok: false, message: 'Join a room first.' });
+      pendingSettings.current += 1;
+      setBusyAction('settings');
+      setError(null);
+      const result = settingsQueue.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (roomRef.current?.code !== activeRoom.code) return { ok: false };
+          const ack = await emitAck<RoomView>('room:settings', {
+            roomCode: activeRoom.code,
+            settings,
+          });
+          if (!ack.ok || !ack.data) {
+            const message = messageForAck(ack);
+            setError(message);
+            return { ok: false, message };
+          }
+          acceptRoom(ack.data);
+          return { ok: true };
+        })
+        .finally(() => {
+          pendingSettings.current -= 1;
+          if (pendingSettings.current === 0)
+            setBusyAction((current) => (current === 'settings' ? null : current));
+        });
+      settingsQueue.current = result;
+      return result;
     },
-    [acceptRoom, emitAck, run],
+    [acceptRoom, emitAck],
   );
 
   const startGame = useCallback(async () => {

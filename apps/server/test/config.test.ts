@@ -30,6 +30,20 @@ function signedWithHistoricalDefault(roomCode: string, memberId: string): string
 }
 
 describe('runtime configuration honesty and session safety', () => {
+  it('allows local real-player previews while requiring durable catalog storage in production', () => {
+    expect(
+      parseConfig({ NODE_ENV: 'development', FOOTBALL_DATA_PROVIDER: 'catalog' })
+        .FOOTBALL_DATA_PROVIDER,
+    ).toBe('catalog');
+    expect(() =>
+      parseConfig({
+        NODE_ENV: 'production',
+        FOOTBALL_DATA_PROVIDER: 'catalog',
+        SESSION_SECRET: 'a-production-secret-that-is-at-least-32-bytes',
+      }),
+    ).toThrow(/DATABASE_URL/);
+  });
+
   it('generates an unpredictable secret when omitted so the historical default cannot forge', async () => {
     const server = await buildServer({
       config: {

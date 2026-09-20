@@ -196,14 +196,37 @@ export function AuctionStage({
         </button>
       </div>
 
+      <div
+        className="draft-progress"
+        aria-label={`Draft progress: ${room.resolvedCycles} of ${room.totalCycles} positions completed`}
+      >
+        <span>BUILDING YOUR XI</span>
+        <div>
+          {Array.from({ length: room.totalCycles }, (_, index) => (
+            <i
+              key={index}
+              className={
+                index < room.resolvedCycles
+                  ? 'is-complete'
+                  : index === room.resolvedCycles
+                    ? 'is-current'
+                    : ''
+              }
+            />
+          ))}
+        </div>
+        <b>
+          {room.resolvedCycles} / {room.totalCycles}
+        </b>
+      </div>
       <section className="auction-stage__main">
         <div className="auction-stage__card">
-          <PlayerCard lot={lot} phase={room.phase} />
+          <PlayerCard key={`${lot.id}:${lot.returnCount}`} lot={lot} phase={room.phase} />
         </div>
         <div className="auction-console">
           <header className="auction-console__timer">
             <div
-              className={`timer-orb ${remaining <= 3_000 && isBidding ? 'timer-orb--urgent' : ''}`}
+              className={`timer-orb ${room.isPaused ? 'timer-orb--paused' : ''} ${remaining <= 3_000 && isBidding ? 'timer-orb--urgent' : ''}`}
               style={{ '--timer-progress': timerRatio } as React.CSSProperties}
             >
               <span data-testid="auction-timer">
@@ -230,7 +253,11 @@ export function AuctionStage({
                   'WHO MOVES FIRST?'
                 )}
               </h2>
-              <small>Every bid resets the clock to 20 seconds. The server owns the gavel.</small>
+              <small>
+                {room.settings.antiSnipeSeconds > 0
+                  ? `Late bids keep at least ${room.settings.antiSnipeSeconds} seconds on the clock.`
+                  : `Fixed ${room.settings.auctionTimerSeconds}-second clock. No late-bid extension.`}
+              </small>
             </div>
           </header>
 

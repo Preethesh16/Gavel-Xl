@@ -2,7 +2,8 @@
 
 import type { RoomMemberView, RoomSettingsInput, RoomView } from '@gavel-xi/shared';
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { FORMATION_PITCHES } from '@/lib/formations';
 import { MILLION, formatMoney } from '@/lib/format';
 import { ArrowIcon, CopyIcon, CrownIcon, EyeIcon } from './icons';
 
@@ -85,10 +86,10 @@ function Participant({ member, index }: { member: RoomMemberView; index: number 
         </span>
       ) : (
         <span
-          className={`participant__state ${member.isReady ? 'is-ready' : ''}`}
+          className={`participant__state ${member.isReady && member.isConnected ? 'is-ready' : ''}`}
           data-testid={`participant-ready-${index + 1}`}
         >
-          <i /> {member.isReady ? 'READY' : member.isConnected ? 'NOT READY' : 'RECONNECTING'}
+          <i /> {!member.isConnected ? 'RECONNECTING' : member.isReady ? 'READY' : 'NOT READY'}
         </span>
       )}
     </li>
@@ -108,21 +109,29 @@ export function Lobby({
 }: LobbyProps) {
   const [customBudget, setCustomBudget] = useState(Math.round(room.settings.budgetEUR / MILLION));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(
+    () => setCustomBudget(Math.round(room.settings.budgetEUR / MILLION)),
+    [room.settings.budgetEUR],
+  );
   const activeMembers = useMemo(
     () => room.members.filter((member) => !member.isSpectator),
     [room.members],
   );
   const connected = activeMembers.filter((member) => member.isConnected).length;
-  const ready = activeMembers.filter((member) => member.isReady).length;
+  const ready = activeMembers.filter((member) => member.isReady && member.isConnected).length;
   const everyoneReady =
     activeMembers.length >= 2 &&
-    activeMembers.every((member) => member.isReady || (member.id === me.id && member.isHost));
+    activeMembers.every(
+      (member) => member.isConnected && (member.isReady || (member.id === me.id && member.isHost)),
+    );
   const preparing = room.phase !== 'LOBBY' && room.phase !== 'READY';
 
+  const settingsLocked =
+    !me.isHost || preparing || (Boolean(busyAction) && busyAction !== 'settings');
   const commitCustomBudget = () => {
     const safe = Math.max(100, Math.min(5_000, Math.round(customBudget)));
     setCustomBudget(safe);
-    void onSettings({ budgetEUR: safe * MILLION });
+    if (safe * MILLION !== room.settings.budgetEUR) void onSettings({ budgetEUR: safe * MILLION });
   };
 
   return (
@@ -159,6 +168,35 @@ export function Lobby({
         </button>
       </section>
 
+      <section className="room-overview" aria-label="Room overview">
+        <div>
+          <span>DIRECTORS ONLINE</span>
+          <strong>
+            {connected}
+            <small> / 8</small>
+          </strong>
+        </div>
+        <div>
+          <span>TRANSFER BUDGET</span>
+          <strong>{formatMoney(room.settings.budgetEUR, true)}</strong>
+        </div>
+        <div>
+          <span>TACTICAL SHAPE</span>
+          <strong>{room.settings.formation}</strong>
+        </div>
+        <div>
+          <span>READY TO PLAY</span>
+          <strong>
+            {ready}
+            <small> / {activeMembers.length}</small>
+          </strong>
+          <progress
+            aria-label="Ready directors"
+            max={Math.max(1, activeMembers.length)}
+            value={ready}
+          />
+        </div>
+      </section>
       <div className="lobby__grid">
         <section className="lobby-panel directors-panel">
           <header className="panel-heading">
@@ -209,6 +247,7 @@ export function Lobby({
             className="settings-mobile-toggle"
             type="button"
             data-testid="settings-toggle"
+            aria-expanded={settingsOpen}
             onClick={() => setSettingsOpen((value) => !value)}
           >
             <span>
@@ -226,14 +265,16 @@ export function Lobby({
                 <h2>MATCH SETTINGS</h2>
               </div>
             </div>
-            <span className="settings-lock">{me.isHost ? 'EDITABLE' : 'VIEW ONLY'}</span>
+            <span className="settings-lock">
+              {busyAction === 'settings' ? 'SAVING…' : me.isHost ? 'EDITABLE' : 'VIEW ONLY'}
+            </span>
           </header>
-          <div className="settings-panel__body" aria-disabled={!me.isHost}>
+          <div className="settings-panel__body" aria-disabled={settingsLocked}>
             <label className="setting-block">
               <span>FORMATION</span>
               <select
                 data-testid="settings-formation"
-                disabled={!me.isHost || Boolean(busyAction)}
+                disabled={settingsLocked}
                 value={room.settings.formation}
                 onChange={(event) =>
                   void onSettings({
@@ -248,13 +289,35 @@ export function Lobby({
                 ))}
               </select>
             </label>
+            <div
+              className="lobby-tactics"
+              aria-label={`${room.settings.formation} starting eleven`}
+            >
+              <div className="tactics-pitch">
+                <div className="tactics-pitch__circle" />
+                <div className="tactics-pitch__box" />
+                {FORMATION_PITCHES[room.settings.formation]?.map((slot) => (
+                  <span
+                    className="tactics-player"
+                    key={slot.id}
+                    style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+                  >
+                    <b>{slot.label}</b>
+                  </span>
+                ))}
+              </div>
+              <p>
+                <b>11 players + 1 manager</b>
+                <span>{formatMoney(room.settings.budgetEUR / 12, true)} average per signing</span>
+              </p>
+            </div>
             <div className="setting-block">
               <span>TRANSFER BUDGET</span>
               <div className="budget-options" data-testid="settings-budget">
                 {BUDGETS.map((budget) => (
                   <button
                     className={room.settings.budgetEUR === budget * MILLION ? 'is-active' : ''}
-                    disabled={!me.isHost || Boolean(busyAction)}
+                    disabled={settingsLocked}
                     key={budget}
                     onClick={() => void onSettings({ budgetEUR: budget * MILLION })}
                     type="button"
@@ -269,7 +332,7 @@ export function Lobby({
                   <span>€</span>
                   <input
                     data-testid="settings-custom-budget"
-                    disabled={!me.isHost}
+                    disabled={settingsLocked}
                     inputMode="numeric"
                     min={100}
                     max={5000}
@@ -290,7 +353,7 @@ export function Lobby({
                 <span>BID STEP</span>
                 <select
                   data-testid="settings-increment"
-                  disabled={!me.isHost}
+                  disabled={settingsLocked}
                   value={room.settings.bidIncrementEUR / MILLION}
                   onChange={(event) =>
                     void onSettings({ bidIncrementEUR: Number(event.target.value) * MILLION })
@@ -306,7 +369,7 @@ export function Lobby({
                 <span>AUCTION CLOCK</span>
                 <select
                   data-testid="settings-timer"
-                  disabled={!me.isHost}
+                  disabled={settingsLocked}
                   value={room.settings.auctionTimerSeconds}
                   onChange={(event) =>
                     void onSettings({ auctionTimerSeconds: Number(event.target.value) })
@@ -328,7 +391,7 @@ export function Lobby({
                 data-testid="settings-mode"
                 type="checkbox"
                 checked={room.settings.budgetMode === 'STRICT'}
-                disabled={!me.isHost}
+                disabled={settingsLocked}
                 onChange={(event) =>
                   void onSettings({ budgetMode: event.target.checked ? 'STRICT' : 'CHAOS' })
                 }
@@ -344,7 +407,7 @@ export function Lobby({
                 data-testid="settings-sound"
                 type="checkbox"
                 checked={room.settings.soundEnabled}
-                disabled={!me.isHost}
+                disabled={settingsLocked}
                 onChange={(event) => void onSettings({ soundEnabled: event.target.checked })}
               />
               <i />
@@ -353,7 +416,7 @@ export function Lobby({
               <span>CURRENT-FORM WINDOW</span>
               <select
                 data-testid="settings-lookback"
-                disabled={!me.isHost}
+                disabled={settingsLocked}
                 value={room.settings.formLookback}
                 onChange={(event) =>
                   void onSettings({
@@ -395,9 +458,11 @@ export function Lobby({
                 ? 'PREPARING THE MARKET…'
                 : activeMembers.length < 2
                   ? 'WAITING FOR 2 DIRECTORS'
-                  : !everyoneReady
-                    ? 'EVERY DIRECTOR MUST BE READY'
-                    : 'START THE AUCTION'}
+                  : connected < activeMembers.length
+                    ? 'WAITING FOR DIRECTORS TO RECONNECT'
+                    : !everyoneReady
+                      ? 'EVERY DIRECTOR MUST BE READY'
+                      : 'START THE AUCTION'}
             </span>
             <ArrowIcon />
           </button>
