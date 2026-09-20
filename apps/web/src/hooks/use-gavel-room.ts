@@ -16,6 +16,20 @@ import { clearSession, loadSession, saveSession, type StoredSession } from '@/li
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting' | 'offline';
 
+const RESULT_VIEWS = new Set([
+  'metrics',
+  'analysis',
+  'replay',
+  'share',
+  'teams',
+  'podium',
+  'results',
+]);
+
+function isEvaluatedResult(room: RoomView): boolean {
+  return (room.phase === 'RESULTS' || room.phase === 'COMPLETE') && Boolean(room.evaluation);
+}
+
 export type AuctionMomentKind =
   'reveal' | 'opened' | 'bid' | 'outbid' | 'sold' | 'unsold' | 'forced' | 'checkpoint' | 'complete';
 
@@ -185,10 +199,25 @@ export function useGavelRoom(): UseGavelRoomValue {
     roomRef.current = nextRoom;
     setRoom(nextRoom);
     if (Number.isFinite(nextRoom.serverNow)) setClockOffset(nextRoom.serverNow - Date.now());
+    // Rematch snapshots reach every director, not only the host who pressed restart.
+    // A completed draft's dashboard query must not bypass the next draft's ceremony.
+    if (!isEvaluatedResult(nextRoom)) {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('view')) {
+        url.searchParams.delete('view');
+        window.history.replaceState({}, '', url);
+      }
+    }
   }, []);
 
   const acceptSession = useCallback(
     (session: SessionPayload) => {
+      const currentUrl = new URL(window.location.href);
+      const requestedView = currentUrl.searchParams.get('view');
+      const sameResultRoom =
+        isEvaluatedResult(session.room) &&
+        (currentUrl.searchParams.get('room')?.trim().toUpperCase() === session.room.code ||
+          roomRef.current?.code === session.room.code);
       const stored: StoredSession = {
         sessionToken: session.sessionToken,
         memberId: session.memberId,
@@ -198,7 +227,12 @@ export function useGavelRoom(): UseGavelRoomValue {
       saveSession(stored);
       setMemberId(session.memberId);
       acceptRoom(session.room);
-      window.history.replaceState({}, '', `/?room=${session.room.code}`);
+      const resumedUrl = new URL('/', window.location.origin);
+      resumedUrl.searchParams.set('room', session.room.code);
+      if (sameResultRoom && requestedView && RESULT_VIEWS.has(requestedView)) {
+        resumedUrl.searchParams.set('view', requestedView);
+      }
+      window.history.replaceState({}, '', resumedUrl);
     },
     [acceptRoom],
   );

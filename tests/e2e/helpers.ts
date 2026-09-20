@@ -453,6 +453,16 @@ export async function continueCheckpoint(
   await waitForPhase(host.page, roomCode, ['BIDDING', 'RESULTS'], 15_000);
 }
 
+/** Leave the live presentation through its real control when a test needs the dashboard. */
+export async function finishResultsCeremony(page: Page): Promise<void> {
+  await expect(page.getByTestId('results-screen')).toBeVisible({ timeout: 15_000 });
+  const finish = page.getByTestId('ceremony-finish');
+  const dashboard = page.getByTestId('results-tab-podium');
+  await expect(finish.or(dashboard)).toBeVisible();
+  if (await finish.isVisible()) await finish.click();
+  await expect(dashboard).toBeVisible();
+}
+
 export async function playToResults(
   host: Director,
   directors: Director[],
@@ -461,6 +471,7 @@ export async function playToResults(
     onCheckpoint?: (number: number) => Promise<void> | void;
     onLot?: (room: DebugRoomState, number: number) => Promise<void> | void;
     maxLots?: number;
+    skipCeremony?: boolean;
   } = {},
 ): Promise<{ lots: number; checkpoints: number }> {
   let lots = 0;
@@ -474,7 +485,16 @@ export async function playToResults(
       ['BIDDING', 'CHECKPOINT', 'RESULTS'],
       20_000,
     );
-    if (state.phase === 'RESULTS') return { lots, checkpoints };
+    if (state.phase === 'RESULTS') {
+      if (options.skipCeremony !== false) {
+        await Promise.all(directors.map(({ page }) => finishResultsCeremony(page)));
+      } else {
+        await Promise.all(
+          directors.map(({ page }) => expect(page.getByTestId('results-screen')).toBeVisible()),
+        );
+      }
+      return { lots, checkpoints };
+    }
     if (state.phase === 'CHECKPOINT') {
       checkpoints += 1;
       await options.onCheckpoint?.(checkpoints);

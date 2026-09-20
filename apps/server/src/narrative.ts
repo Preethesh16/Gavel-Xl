@@ -158,22 +158,18 @@ export function withDeterministicAnalystReport(input: EvaluationNarrativeInput):
   const champion = rankings[0]!;
   const runnerUp = rankings[1];
   const categories = [...new Set(evaluation.metrics.map(({ category }) => category))];
-  const strongestCategory = (memberId: string) => {
+  const rankedCategories = (memberId: string) => {
     const team = evaluation.teams.find((candidate) => candidate.memberId === memberId)!;
-    return (
-      [...categories].sort(
-        (left, right) => (team.categoryScores[right] ?? 0) - (team.categoryScores[left] ?? 0),
-      )[0] ?? 'overall balance'
-    );
+    return Object.entries(team.categoryScores)
+      .sort(
+        ([left, leftScore], [right, rightScore]) =>
+          rightScore - leftScore || left.localeCompare(right),
+      )
+      .map(([category]) => category);
   };
-  const weakestCategory = (memberId: string) => {
-    const team = evaluation.teams.find((candidate) => candidate.memberId === memberId)!;
-    return (
-      [...categories].sort(
-        (left, right) => (team.categoryScores[left] ?? 0) - (team.categoryScores[right] ?? 0),
-      )[0] ?? 'squad depth'
-    );
-  };
+  const strongestCategory = (memberId: string) =>
+    rankedCategories(memberId)[0] ?? 'overall balance';
+  const weakestCategory = (memberId: string) => rankedCategories(memberId).at(-1) ?? 'squad depth';
   const championName = names.get(champion.memberId) ?? champion.memberId;
   const runnerName = runnerUp ? (names.get(runnerUp.memberId) ?? runnerUp.memberId) : null;
   const margin = runnerUp
@@ -189,6 +185,12 @@ export function withDeterministicAnalystReport(input: EvaluationNarrativeInput):
       const name = names.get(team.memberId) ?? team.memberId;
       const strongest = strongestCategory(team.memberId);
       const weakest = weakestCategory(team.memberId);
+      const supporting = rankedCategories(team.memberId).find((category) => category !== strongest);
+      const weaknessCopy = team.weakness.trim();
+      const concern =
+        !weaknessCopy || weaknessCopy.toLocaleLowerCase() === weakest.toLocaleLowerCase()
+          ? `${weakest} is the clearest area to improve.`
+          : weaknessCopy;
       const squad = (input.squads ?? []).filter(({ memberId }) => memberId === team.memberId);
       const frontLine = squad
         .filter(({ position }) => ['LW', 'RW', 'ST', 'AM'].includes(position))
@@ -198,9 +200,11 @@ export function withDeterministicAnalystReport(input: EvaluationNarrativeInput):
       return {
         memberId: team.memberId,
         verdict: `${name} ranks #${team.rank} with ${team.overallScore.toFixed(1)}/100. ${strongest} is the defining unit${frontLine ? `, with ${frontLine} shaping the attacking picture` : ''}; ${weakest} is where the model found the clearest gap to the leaders.`,
-        tacticalIdentity: `${strongest} first, supported by ${team.strengths[0] ?? 'balanced structure'}`,
+        tacticalIdentity: supporting
+          ? `${strongest} first, supported by ${supporting}`
+          : `${strongest} defines the team's approach.`,
         decisiveEdge: `${team.metricWins} metric wins and ${team.categoryWins} category wins`,
-        concern: `${weakest}: ${team.weakness}`,
+        concern,
       };
     }),
     categoryVerdicts: categories.map((category) => {

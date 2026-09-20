@@ -37,6 +37,7 @@ function PitchPlayer({
   y,
   order,
   selected,
+  showRatingLabel,
   onSelect,
 }: {
   entry: SquadEntryView | null;
@@ -46,6 +47,7 @@ function PitchPlayer({
   y: number;
   order: number;
   selected: boolean;
+  showRatingLabel: boolean;
   onSelect: () => void;
 }) {
   const name = entry ? entry.candidate.commonName || entry.candidate.fullName : 'SIGNING NEEDED';
@@ -71,7 +73,11 @@ function PitchPlayer({
         )}
         <span className="tactical-player__position">{label}</span>
         {entry ? (
-          <span className="tactical-player__rating">
+          <span
+            className="tactical-player__rating"
+            title={`Current form: ${Math.round(entry.candidate.currentFormRating)} out of 100`}
+          >
+            {showRatingLabel ? <small>FORM</small> : null}
             {Math.round(entry.candidate.currentFormRating)}
           </span>
         ) : null}
@@ -85,10 +91,12 @@ function TeamBoard({
   room,
   member,
   compact = false,
+  showRatingLabels = false,
 }: {
   room: RoomView;
   member: RoomMemberView;
   compact?: boolean;
+  showRatingLabels?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const entries = room.squads.filter((entry) => entry.memberId === member.id);
@@ -198,6 +206,7 @@ function TeamBoard({
                 y={slot.y}
                 order={index}
                 selected={selectedId !== 'manager' && selectedSlot?.slot.id === slot.id}
+                showRatingLabel={showRatingLabels}
                 onSelect={() => setSelectedId(slot.id)}
               />
             ))}

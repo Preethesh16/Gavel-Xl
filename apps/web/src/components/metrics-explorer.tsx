@@ -39,7 +39,7 @@ function MetricNumber({ value }: { value: number }) {
   );
 }
 
-function MetricDial({
+export function MetricDial({
   name,
   score,
   color,

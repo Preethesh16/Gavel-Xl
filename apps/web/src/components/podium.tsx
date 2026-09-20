@@ -29,7 +29,15 @@ function PodiumPlace({ room, team }: { room: RoomView; team: TeamResultView }) {
   );
 }
 
-export function Podium({ room, evaluation }: { room: RoomView; evaluation: EvaluationView }) {
+export function Podium({
+  room,
+  evaluation,
+  announce = true,
+}: {
+  room: RoomView;
+  evaluation: EvaluationView;
+  announce?: boolean;
+}) {
   const rankings = [...evaluation.teams].sort((a, b) => a.rank - b.rank);
   const podiumOrder = [
     rankings.find((team) => team.rank === 2),
@@ -39,7 +47,7 @@ export function Podium({ room, evaluation }: { room: RoomView; evaluation: Evalu
   const champion = rankings[0];
   const championMember = room.members.find(({ id }) => id === champion?.memberId);
   useEffect(() => {
-    if (!champion || !championMember) return;
+    if (!announce || !champion || !championMember) return;
     emitBroadcast({
       id: `winner-${room.code}-${evaluation.seed}`,
       cue: 'winner',
@@ -48,6 +56,7 @@ export function Podium({ room, evaluation }: { room: RoomView; evaluation: Evalu
     });
     return cancelBroadcastNarration;
   }, [
+    announce,
     champion?.memberId,
     champion?.overallScore,
     championMember?.name,

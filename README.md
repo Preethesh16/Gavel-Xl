@@ -235,7 +235,15 @@ touch targets are mobile-first; and `prefers-reduced-motion` collapses cinematic
 changing the rules. Sound remains opt-in after a user gesture and globally togglable.
 
 The scouting desk, interactive portrait pitch, category duels, and trophy ceremony use real room
-snapshots. The results page offers **Replay the reveal**, with pause, next-round, and skip controls.
+snapshots. After the auction, a narrated show compares all 100 metrics individually, with category
+introductions and every director's score. It then presents each team's analysis, the final trophy
+verdict, and one completed lineup at a time with the locked team and category ratings. Player cards
+identify their ratings as current form. The show finishes on the existing results dashboard.
+
+**Replay the full show** restarts the presentation. Pause, back, next, pace, chapter-skip and exit
+controls stay available. Each scene waits for its narration to finish before advancing. Hidden tabs
+pause playback; reduced motion removes animation while retaining the sequence. Completed shows are
+remembered for the current browser session, and rematches start a fresh ceremony.
 The header's sound booth independently controls commentary and master volume; preferences persist
 on the device, while the host's room-wide mute takes precedence. Commentary uses an installed browser
 voice (preferring natural English voices when available), with local-voice fallback. Synthesized

@@ -2,7 +2,8 @@
 
 import type { RoomMemberView, RoomView } from '@gavel-xi/shared';
 import { useCallback, useEffect, useState } from 'react';
-import { AnalystReport, VerdictReveal } from './analyst-report';
+import { AnalystReport } from './analyst-report';
+import { ResultsCeremony } from './results-ceremony';
 import { MetricsExplorer } from './metrics-explorer';
 import { Podium } from './podium';
 import { Replay } from './replay';
@@ -27,9 +28,24 @@ export function ResultsHub({
 }) {
   const [tab, setTab] = useState<ResultTab>('podium');
   const [revealComplete, setRevealComplete] = useState(readOnly);
-  const [replaying, setReplaying] = useState(false);
+  const [presentationShown, setPresentationShown] = useState(false);
+  const [resolved, setResolved] = useState(readOnly);
   const evaluation = room.evaluation;
-  const completeReveal = useCallback(() => setRevealComplete(true), []);
+  const completionKey = `gavel-xi:ceremony:${room.code}:${evaluation?.seed ?? ''}`;
+  const completeReveal = useCallback(() => {
+    setRevealComplete(true);
+    setPresentationShown(true);
+    setTab('podium');
+    try {
+      window.sessionStorage.setItem(completionKey, 'complete');
+    } catch {
+      /* Storage is optional. */
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', 'results');
+    window.history.replaceState({}, '', url);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [completionKey]);
 
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get('view');
@@ -39,14 +55,22 @@ export function ResultsHub({
       requested === 'replay' ||
       requested === 'share' ||
       requested === 'teams' ||
-      requested === 'podium'
+      requested === 'podium' ||
+      requested === 'results'
     ) {
-      setTab(requested);
+      setTab(requested === 'results' ? 'podium' : requested);
       setRevealComplete(true);
+    } else {
+      try {
+        setRevealComplete(readOnly || window.sessionStorage.getItem(completionKey) === 'complete');
+      } catch {
+        setRevealComplete(readOnly);
+      }
     }
-  }, []);
+    setResolved(true);
+  }, [completionKey, readOnly]);
 
-  if (!evaluation) return null;
+  if (!evaluation || !resolved) return null;
   const chooseTab = (next: ResultTab) => {
     setTab(next);
     const url = new URL(window.location.href);
@@ -57,12 +81,7 @@ export function ResultsHub({
   if (!revealComplete) {
     return (
       <main className="results-hub" data-testid="results-screen">
-        <VerdictReveal
-          room={room}
-          evaluation={evaluation}
-          replay={replaying}
-          onComplete={completeReveal}
-        />
+        <ResultsCeremony room={room} evaluation={evaluation} onComplete={completeReveal} />
       </main>
     );
   }
@@ -125,15 +144,17 @@ export function ResultsHub({
             className="ceremony-replay"
             data-testid="replay-ceremony"
             onClick={() => {
-              setReplaying(true);
+              setPresentationShown(true);
               setRevealComplete(false);
               window.scrollTo({ top: 0, behavior: 'instant' });
             }}
           >
-            <ReplayIcon /> REPLAY THE REVEAL
+            <ReplayIcon /> REPLAY THE FULL SHOW
           </button>
         ) : null}
-        {tab === 'podium' ? <Podium room={room} evaluation={evaluation} /> : null}
+        {tab === 'podium' ? (
+          <Podium room={room} evaluation={evaluation} announce={!presentationShown} />
+        ) : null}
         {tab === 'analysis' ? <AnalystReport room={room} evaluation={evaluation} /> : null}
         {tab === 'teams' ? (
           <section className="final-teams" data-testid="results-teams">

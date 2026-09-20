@@ -123,18 +123,18 @@ test('broadcast scenes animate, explain each squad and expose a controllable cer
     await captureScene(page, testInfo, 'broadcast-winner-desktop');
 
     await page.getByTestId('replay-ceremony').click();
-    const ceremony = page.getByTestId('verdict-reveal');
+    const ceremony = page.getByTestId('results-ceremony');
     await expect(ceremony).toBeVisible();
-    await page.getByTestId('verdict-pause').click();
-    await expect(page.getByTestId('verdict-pause')).toHaveAttribute('aria-pressed', 'true');
-    const counter = page.getByTestId('verdict-round-counter');
+    await page.getByTestId('ceremony-pause').click();
+    await expect(page.getByTestId('ceremony-pause')).toHaveAttribute('aria-pressed', 'true');
+    const counter = page.getByTestId('ceremony-counter');
     const pausedRound = await counter.innerText();
     // Wait longer than an automatic round to prove pause stops progression.
     await page.waitForTimeout(4_600);
     await expect(counter).toHaveText(pausedRound);
-    await page.getByTestId('verdict-next').click();
+    await page.getByTestId('ceremony-next').click();
     await expect(counter).not.toHaveText(pausedRound);
-    await expect(page.getByTestId('verdict-pause')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('ceremony-pause')).toHaveAttribute('aria-pressed', 'true');
     await expectContainedScene(page, 'desktop category duel');
     await captureScene(page, testInfo, 'broadcast-ceremony-desktop');
 
@@ -153,7 +153,7 @@ test('broadcast scenes animate, explain each squad and expose a controllable cer
         ),
       )
       .toBe(0);
-    await page.getByTestId('verdict-skip').click();
+    await page.getByTestId('ceremony-finish').click();
     await expect(ceremony).not.toBeVisible();
     await expect(page.getByTestId('results-podium')).toContainText(winnerName!);
     await expectContainedScene(page, 'phone winner with reduced motion');

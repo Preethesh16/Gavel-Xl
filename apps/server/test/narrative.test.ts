@@ -142,6 +142,46 @@ describe('optional Groq evaluation narrative', () => {
     expect(report.teams).toEqual(base.teams);
   });
 
+  it('uses distinct scored departments and a natural concern in the deterministic copy', () => {
+    const base = evaluation();
+    base.teams[0]!.categoryScores = {
+      'MANAGER & TACTICS': 89,
+      MIDFIELD: 82,
+      ATTACK: 74,
+    };
+    base.teams[0]!.strengths = ['MANAGER & TACTICS', 'MIDFIELD'];
+    base.teams[0]!.weakness = 'ATTACK';
+    const result = withDeterministicAnalystReport({
+      roomCode: 'ABC234',
+      members: [{ id: 'alpha', name: 'Alpha' }],
+      evaluation: base,
+    });
+
+    expect(result.analystReport?.teamVerdicts[0]).toMatchObject({
+      tacticalIdentity: 'MANAGER & TACTICS first, supported by MIDFIELD',
+      concern: 'ATTACK is the clearest area to improve.',
+    });
+    expect(result.teams).toEqual(base.teams);
+    expect(base.analystReport).toBeUndefined();
+  });
+
+  it('handles a single department and preserves a descriptive weakness without a repeated prefix', () => {
+    const base = evaluation();
+    base.teams[0]!.categoryScores = { ATTACK: 88 };
+    base.teams[0]!.strengths = ['ATTACK', 'ATTACK'];
+    base.teams[0]!.weakness = 'ATTACK: Needs more invention against a settled block';
+    const result = withDeterministicAnalystReport({
+      roomCode: 'ABC234',
+      members: [{ id: 'alpha', name: 'Alpha' }],
+      evaluation: base,
+    });
+
+    expect(result.analystReport?.teamVerdicts[0]).toMatchObject({
+      tacticalIdentity: "ATTACK defines the team's approach.",
+      concern: 'ATTACK: Needs more invention against a settled block',
+    });
+  });
+
   it('uses strict structured output, caches it and cannot change numerical authority', async () => {
     const requests: Array<{ url: string; init: RequestInit }> = [];
     const fetcher: typeof fetch = vi.fn(async (input, init) => {

@@ -5,6 +5,7 @@ import {
   BROADCAST_AUDIO_EVENT,
   BROADCAST_CANCEL_EVENT,
   BroadcastNarrator,
+  onceSettled,
   type BroadcastAudioEvent,
   type SoundCue,
 } from '@/lib/broadcast-audio';
@@ -199,12 +200,25 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
   }, [setDucked]);
 
   const announce = useCallback(
-    (message: string, delay = 80) => {
-      if (!enabledRef.current || !voiceRef.current || !audioAllowed()) return;
+    (message: string, delay = 80, onSettled?: () => void) => {
+      const settle = onceSettled(onSettled);
+      if (
+        !enabledRef.current ||
+        !voiceRef.current ||
+        volumeRef.current === 0 ||
+        !unlockedRef.current ||
+        !audioAllowed() ||
+        !('speechSynthesis' in window) ||
+        !('SpeechSynthesisUtterance' in window)
+      ) {
+        narratorRef.current?.cancel();
+        settle();
+        return;
+      }
       const narrator = getNarrator();
       const sold = soldRef.current;
-      narrator.hold(!unlockedRef.current || Boolean(sold && !sold.paused && !sold.ended));
-      narrator.queue(message, delay);
+      narrator.hold(Boolean(sold && !sold.paused && !sold.ended));
+      narrator.queue(message, delay, settle);
     },
     [getNarrator],
   );
@@ -365,7 +379,14 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
   useEffect(() => {
     const broadcast = (event: Event) => {
       const detail = (event as CustomEvent<BroadcastAudioEvent>).detail;
-      if (!detail?.id || broadcastHistory.current.has(detail.id)) return;
+      const settle = onceSettled(detail?.onSettled);
+      // Acknowledge even muted and duplicate beats: the caller is waiting for this
+      // event's lifecycle, and these paths settle immediately without playback.
+      event.preventDefault();
+      if (!detail?.id || broadcastHistory.current.has(detail.id)) {
+        settle();
+        return;
+      }
       broadcastHistory.current.add(detail.id);
       activeBroadcast.current = detail.id;
       if (broadcastHistory.current.size > 200) {
@@ -373,8 +394,11 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
         if (oldest) broadcastHistory.current.delete(oldest);
       }
       play(detail.cue);
-      if (detail.message) announce(detail.message, detail.delayMs ?? 180);
-      else if (detail.cue === 'transition') cancelNarration();
+      if (detail.message) announce(detail.message, detail.delayMs ?? 180, settle);
+      else {
+        if (detail.cue === 'transition') cancelNarration();
+        settle();
+      }
     };
     const stopBroadcast = () => {
       // A fresh presentation after unmount/replay may narrate again. Duplicate events
@@ -388,6 +412,7 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
     return () => {
       window.removeEventListener(BROADCAST_AUDIO_EVENT, broadcast);
       window.removeEventListener(BROADCAST_CANCEL_EVENT, stopBroadcast);
+      stopBroadcast();
     };
   }, [announce, cancelNarration, play]);
 

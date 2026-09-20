@@ -1,0 +1,709 @@
+/* The complete post-auction broadcast. All numbers remain the locked football result. */
+.results-ceremony {
+  padding: 0 clamp(16px, 4vw, 60px) 30px;
+  /* Clip effects without creating a scroll container that traps the playback dock. */
+  overflow: clip;
+  border: 1px solid #adc6e624;
+  border-radius: 12px;
+  max-width: 1500px;
+  margin: 20px auto 60px;
+  color: #fff4dc;
+}
+.ceremony-chapters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 24px 0 20px;
+}
+.ceremony-chapters > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 2px solid #abc8e528;
+  padding-bottom: 16px;
+  color: #8ca6c6;
+  min-width: 0;
+}
+.ceremony-chapters span {
+  font: 900 25px/1 var(--display);
+  opacity: 0.55;
+}
+.ceremony-chapters b {
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+}
+.ceremony-chapters .is-current {
+  color: #f1bf00;
+  border-color: #f1bf00;
+}
+.ceremony-chapters .is-current span {
+  opacity: 1;
+}
+.ceremony-cue {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #f1bf00;
+  padding: 12px 0;
+}
+.results-ceremony[data-phase='lineup'] .ceremony-cue {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 7;
+  min-height: 44px;
+  background: #031631f2;
+  backdrop-filter: blur(14px);
+}
+.results-ceremony .ceremony-lineup .tactical-board__stadium {
+  scroll-margin-top: calc(var(--header-height) + 56px);
+}
+.ceremony-analysis__team {
+  scroll-margin-top: calc(var(--header-height) + 10px);
+}
+.ceremony-cue > b {
+  color: #a9bfd9;
+  font-variant-numeric: tabular-nums;
+}
+.ceremony-stage {
+  position: relative;
+  min-height: 530px;
+  outline: none;
+  padding-bottom: 24px;
+  animation: ceremony-cut 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ceremony-title {
+  margin: 26px 0 30px;
+}
+.ceremony-title .eyebrow {
+  color: #a8bdd7;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.ceremony-title h1 {
+  font: 900 clamp(36px, 5vw, 78px)/0.98 var(--display);
+  letter-spacing: -0.045em;
+  text-transform: uppercase;
+  max-width: 1100px;
+  margin: 12px 0 16px;
+  overflow-wrap: anywhere;
+}
+.ceremony-title h1 em {
+  font-style: normal;
+  color: #f1bf00;
+}
+.ceremony-title > p:last-child {
+  font-size: 13px;
+  color: #a9bfd9;
+  line-height: 1.6;
+}
+.ceremony-category.battle-reveal {
+  padding: 0;
+  background: transparent;
+}
+.ceremony-category .ceremony-title h1 {
+  font-size: clamp(45px, 8vw, 115px);
+  color: #f1bf00;
+}
+.ceremony-category .battle-contenders {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.ceremony-category .battle-contenders > article {
+  min-height: 102px;
+}
+.ceremony-category__caption {
+  font-size: 10px;
+  color: #9eb6d2;
+  letter-spacing: 0.09em;
+  display: flex;
+  justify-content: space-between;
+  line-height: 1.6;
+  margin: 25px 0;
+}
+.ceremony-category__caption span {
+  color: #f1bf00;
+  font-size: 24px;
+}
+.ceremony-duel.metric-lab-card {
+  overflow: hidden;
+  border: 1px solid #acc2db30;
+  background: radial-gradient(ellipse at 50% 0, #173f68, #031631 80%);
+  border-radius: 22px 4px 22px 4px;
+}
+.ceremony-duel__stamp {
+  position: absolute;
+  font: 900 clamp(150px, 30vw, 400px)/1 var(--display);
+  color: #b6d2ef05;
+  right: -8px;
+  top: -35px;
+  letter-spacing: -0.08em;
+  pointer-events: none;
+}
+.ceremony-duel .metric-dial-grid {
+  grid-template-columns: repeat(var(--competitors), minmax(0, 1fr));
+  padding: clamp(25px, 4vw, 52px) 28px 32px;
+  gap: 24px;
+}
+.ceremony-duel .metric-dial {
+  width: min(100%, 240px);
+}
+.ceremony-duel .score-number {
+  font-size: clamp(35px, 4.5vw, 66px);
+}
+.ceremony-duel .metric-dial__number > small {
+  font-size: 9px;
+}
+.ceremony-duel .metric-contender > strong {
+  font-size: clamp(16px, 2.2vw, 26px);
+  margin-top: 20px;
+}
+.ceremony-duel .metric-contender > span {
+  font-size: 9px;
+  margin-top: 9px;
+}
+.ceremony-duel .metric-dial__crown {
+  width: 34px;
+  height: 34px;
+  font-size: 20px;
+}
+.ceremony-decision {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 24px;
+  background: #f1bf00;
+  color: #031631;
+  animation: ceremony-verdict-stamp 0.65s 1.25s both;
+}
+.ceremony-decision > span {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+}
+.ceremony-decision > strong {
+  font: 900 clamp(20px, 3vw, 36px)/1.1 var(--display);
+  overflow-wrap: anywhere;
+}
+.ceremony-decision > b {
+  font-size: 10px;
+  border: 1px solid #03163150;
+  border-radius: 4px;
+  padding: 8px;
+  white-space: nowrap;
+}
+.ceremony-metric__trail {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 22px 0 0;
+  flex-wrap: wrap;
+}
+.ceremony-metric__trail > span {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #abc7e325;
+  color: #91adcb;
+  font-size: 9px;
+  border-radius: 50%;
+}
+.ceremony-metric__trail .is-complete {
+  color: #f1bf00;
+  background: #f1bf0010;
+  border-color: #f1bf0050;
+}
+.ceremony-metric__trail .is-current {
+  background: #fff4dc;
+  color: #031631;
+  border-color: #fff4dc;
+  box-shadow: 0 0 0 4px #fff4dc12;
+}
+.ceremony-analysis__team {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  padding: 25px 0;
+  border-block: 1px solid #aec5df30;
+}
+.ceremony-analysis__team > span {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  background: var(--team-color);
+  display: grid;
+  place-items: center;
+  color: #031631;
+  font: 900 24px var(--display);
+  border-radius: 12px 2px 12px 2px;
+}
+.ceremony-analysis__team > div {
+  min-width: 0;
+}
+.ceremony-analysis__team small {
+  font-size: 9px;
+  color: #9db5d1;
+  letter-spacing: 0.1em;
+}
+.ceremony-analysis__team h2 {
+  margin: 7px 0 0;
+  font: 900 clamp(25px, 4vw, 48px)/1 var(--display);
+  overflow-wrap: anywhere;
+}
+.ceremony-analysis__team > b {
+  margin-left: auto;
+  font-size: 16px;
+  color: var(--team-color);
+  white-space: nowrap;
+}
+.ceremony-analysis__cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 25px;
+}
+.ceremony-analysis__cards > article {
+  position: relative;
+  border: 1px solid #aec5df30;
+  padding: 28px;
+  border-top: 3px solid var(--team-color);
+  border-radius: 4px 4px 16px 4px;
+  background: #082448;
+  animation: ceremony-analysis-arrive 0.7s calc(var(--analysis-order) * 0.7s) both;
+}
+.ceremony-analysis__cards > article > span {
+  font: 900 48px/1 var(--display);
+  color: var(--team-color);
+  opacity: 0.7;
+}
+.ceremony-analysis__cards h3 {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  margin: 30px 0 15px;
+}
+.ceremony-analysis__cards p {
+  font-size: 15px;
+  color: #bfcfe3;
+  line-height: 1.8;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ceremony-analysis__note {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 9px;
+  color: #9db5d1;
+  margin: 30px 0;
+  line-height: 1.7;
+}
+.ceremony-analysis__note b {
+  color: #f1bf00;
+}
+.ceremony-controls {
+  position: sticky;
+  bottom: 10px;
+  z-index: 8;
+  border: 1px solid #acc2db40;
+  background: #04162ff5;
+  border-radius: 8px;
+  padding: 0 18px 14px;
+  box-shadow: 0 16px 50px #0008;
+  backdrop-filter: blur(18px);
+  overflow: hidden;
+}
+.ceremony-controls > progress {
+  display: block;
+  width: calc(100% + 36px);
+  margin: 0 -18px;
+  height: 3px;
+  appearance: none;
+  border: 0;
+  background: #adc6e61a;
+}
+.ceremony-controls > progress::-webkit-progress-bar {
+  background: #adc6e61a;
+}
+.ceremony-controls > progress::-webkit-progress-value {
+  background: #f1bf00;
+}
+.ceremony-controls > progress::-moz-progress-bar {
+  background: #f1bf00;
+}
+.ceremony-controls__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+}
+.ceremony-controls__top > span {
+  font-size: 8px;
+  letter-spacing: 0.05em;
+  color: #a7bed9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.6;
+}
+.ceremony-controls__top i {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  background: #f1bf00;
+  border-radius: 50%;
+}
+.ceremony-controls__top label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #a7bed9;
+  font-size: 8px;
+}
+.ceremony-controls select {
+  color: #fff4dc;
+  border: 1px solid #9db5d150;
+  background: #0b284e;
+  padding: 5px;
+  font-size: 11px;
+  min-height: 30px;
+}
+.ceremony-controls__buttons {
+  display: flex;
+  gap: 8px;
+}
+.ceremony-controls button {
+  min-height: 44px;
+  padding: 12px 16px;
+  border: 1px solid #a6c1df40;
+  border-radius: 4px;
+  background: #0c2b51;
+  color: #fff4dc;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.ceremony-controls button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.ceremony-controls button:hover:not(:disabled) {
+  border-color: #f1bf00;
+}
+.ceremony-controls button[aria-pressed='true'] {
+  border-color: #f1bf00;
+  color: #f1bf00;
+}
+.ceremony-controls .ceremony-controls__chapter {
+  margin-left: auto;
+  background: #f1bf00;
+  color: #031631;
+  border-color: #f1bf00;
+}
+.ceremony-controls .ceremony-controls__exit {
+  background: transparent;
+  border-color: transparent;
+  color: #a7bed9;
+}
+.results-ceremony button:focus-visible,
+.results-ceremony select:focus-visible {
+  outline: 2px solid #fff4dc;
+  outline-offset: 3px;
+}
+.results-ceremony[data-paused='true'] *,
+.results-ceremony[data-paused='true'] *::before,
+.results-ceremony[data-paused='true'] *::after {
+  animation: none !important;
+}
+.results-ceremony .podium-view {
+  padding-top: 10px;
+}
+.results-ceremony .champion-stage {
+  border-radius: 10px;
+}
+@keyframes ceremony-cut {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes ceremony-verdict-stamp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes ceremony-analysis-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(25px) rotate(-2deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+}
+@media (max-width: 1000px) {
+  .ceremony-duel .metric-dial-grid {
+    gap: 14px;
+    padding: 26px 16px;
+  }
+  .ceremony-analysis__cards {
+    gap: 10px;
+  }
+  .ceremony-analysis__cards > article {
+    padding: 20px;
+  }
+  .ceremony-analysis__cards p {
+    font-size: 13px;
+  }
+  .ceremony-controls button {
+    padding: 12px;
+  }
+}
+@media (max-width: 700px) {
+  .results-ceremony {
+    margin: 10px 0 30px;
+    border-radius: 0;
+    padding-inline: 14px;
+  }
+  .ceremony-chapters {
+    gap: 9px;
+    padding: 12px 0 10px;
+  }
+  .ceremony-chapters > div {
+    display: block;
+    padding-bottom: 10px;
+  }
+  .ceremony-chapters b {
+    display: block;
+    font-size: 7px;
+    letter-spacing: 0.02em;
+    margin-top: 8px;
+  }
+  .ceremony-chapters span {
+    font-size: 21px;
+  }
+  .ceremony-cue {
+    font-size: 8px;
+    padding-block: 6px;
+  }
+  .ceremony-stage {
+    min-height: 400px;
+  }
+  .ceremony-title {
+    margin-top: 20px;
+  }
+  .ceremony-metric .ceremony-title {
+    margin: 8px 0 14px;
+  }
+  .ceremony-metric .ceremony-title h1 {
+    margin: 8px 0;
+  }
+  .ceremony-metric .ceremony-title > p:last-child {
+    display: none;
+  }
+  .ceremony-title .eyebrow {
+    font-size: 8px;
+  }
+  .ceremony-title h1 {
+    font-size: clamp(32px, 8.5vw, 52px);
+    line-height: 1.02;
+  }
+  .ceremony-title > p:last-child {
+    font-size: 11px;
+  }
+  .ceremony-category .ceremony-title h1 {
+    font-size: clamp(40px, 10vw, 65px);
+  }
+  .ceremony-category .battle-contenders > article {
+    min-height: 90px;
+  }
+  .ceremony-duel .metric-dial-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 25px 10px;
+    padding: 18px 14px;
+  }
+  .ceremony-duel .score-number {
+    font-size: clamp(30px, 8vw, 48px);
+  }
+  .ceremony-duel .metric-dial__number > small {
+    font-size: 7px;
+  }
+  .ceremony-duel .metric-contender > strong {
+    font-size: 15px;
+    margin-top: 12px;
+  }
+  .ceremony-duel .metric-contender > span {
+    font-size: 7px;
+  }
+  .ceremony-duel .metric-dial__crown {
+    width: 27px;
+    height: 27px;
+    font-size: 14px;
+  }
+  .ceremony-duel .metric-dial-grid > div:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    max-width: 180px;
+    width: 100%;
+    margin-inline: auto;
+  }
+  /* Three-way comparisons remain together on a phone instead of hiding the third team below the dock. */
+  .ceremony-duel .metric-dial-grid:has(> div:nth-child(3)):not(:has(> div:nth-child(4))) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding-inline: 8px;
+  }
+  .ceremony-duel .metric-dial-grid:has(> div:nth-child(3)):not(:has(> div:nth-child(4))) > div {
+    grid-column: auto;
+    max-width: none;
+  }
+  .ceremony-duel
+    .metric-dial-grid:has(> div:nth-child(3)):not(:has(> div:nth-child(4)))
+    .score-number {
+    font-size: clamp(21px, 6.5vw, 36px);
+  }
+  .ceremony-duel
+    .metric-dial-grid:has(> div:nth-child(3)):not(:has(> div:nth-child(4)))
+    .metric-contender
+    > strong {
+    font-size: 11px;
+  }
+  .ceremony-duel
+    .metric-dial-grid:has(> div:nth-child(3)):not(:has(> div:nth-child(4)))
+    .metric-contender
+    > span {
+    font-size: 6px;
+  }
+  .ceremony-duel
+    .metric-dial-grid:has(> div:nth-child(3)):not(:has(> div:nth-child(4)))
+    .metric-dial__number
+    > small {
+    font-size: 5px;
+    margin-top: 5px;
+  }
+  .ceremony-duel
+    .metric-dial-grid:has(> div:nth-child(3)):not(:has(> div:nth-child(4)))
+    .metric-dial__crown {
+    width: 21px;
+    height: 21px;
+    font-size: 10px;
+    border-width: 3px;
+  }
+  .ceremony-decision {
+    padding: 17px;
+    gap: 10px;
+    flex-wrap: wrap;
+    text-align: center;
+  }
+  .ceremony-decision > span {
+    flex-basis: 100%;
+    font-size: 8px;
+  }
+  .ceremony-decision > strong {
+    font-size: 23px;
+  }
+  .ceremony-decision > b {
+    font-size: 8px;
+  }
+  .ceremony-metric__trail {
+    gap: 5px;
+  }
+  .ceremony-metric__trail > span {
+    width: 24px;
+    height: 24px;
+    font-size: 8px;
+  }
+  .ceremony-analysis .ceremony-title {
+    display: none;
+  }
+  .ceremony-analysis__team {
+    gap: 12px;
+    padding-block: 18px;
+  }
+  .ceremony-analysis__team > span {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+  .ceremony-analysis__team > b {
+    font-size: 12px;
+  }
+  .ceremony-analysis__team small {
+    font-size: 7px;
+  }
+  .ceremony-analysis__cards {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .ceremony-analysis__cards > article {
+    padding: 14px;
+  }
+  .ceremony-analysis__cards > article > span {
+    float: right;
+    margin-left: 14px;
+    font-size: 35px;
+  }
+  .ceremony-analysis__cards h3 {
+    margin: 5px 0 10px;
+  }
+  .ceremony-analysis__cards p {
+    font-size: 12px;
+    line-height: 1.65;
+  }
+  .ceremony-controls {
+    padding: 0 10px 10px;
+    bottom: 5px;
+  }
+  .ceremony-controls > progress {
+    margin-inline: -10px;
+    width: calc(100% + 20px);
+  }
+  .ceremony-controls__top {
+    gap: 8px;
+    padding-block: 10px;
+  }
+  .ceremony-controls__top > span {
+    font-size: 7px;
+    max-width: 210px;
+  }
+  .ceremony-controls__buttons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .ceremony-controls button {
+    min-width: 0;
+    padding: 12px 5px;
+    font-size: 8px;
+  }
+  .ceremony-controls .ceremony-controls__chapter {
+    grid-column: 1 / 3;
+    margin-left: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .results-ceremony *,
+  .results-ceremony *::before,
+  .results-ceremony *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

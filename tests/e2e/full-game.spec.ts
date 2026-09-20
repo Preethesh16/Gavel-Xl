@@ -87,6 +87,11 @@ test('two directors complete every slot and receive the 100-metric verdict, reca
 
     await host.page.getByTestId('results-tab-metrics').click();
     await expect(host.page.getByTestId('metric-count')).toHaveText('100');
+    await expect(host.page).toHaveURL((url) => url.searchParams.get('view') === 'metrics');
+    await host.page.reload();
+    await expect(host.page.getByTestId('metrics-explorer')).toBeVisible();
+    await expect(host.page).toHaveURL((url) => url.searchParams.get('view') === 'metrics');
+    await expect(host.page.getByTestId('results-ceremony')).not.toBeVisible();
     await expect(
       host.page.locator('[data-testid^="metric-"]:not([data-testid="metric-count"])'),
     ).toHaveCount(100);
@@ -160,8 +165,8 @@ test('two directors complete every slot and receive the 100-metric verdict, reca
     );
     await publicViewer.page.keyboard.press('Escape');
     await publicViewer.page.getByTestId('replay-ceremony').click();
-    await expect(publicViewer.page.getByTestId('verdict-reveal')).toBeVisible();
-    await publicViewer.page.getByTestId('verdict-skip').click();
+    await expect(publicViewer.page.getByTestId('results-ceremony')).toBeVisible();
+    await publicViewer.page.getByTestId('ceremony-finish').click();
     await expect(publicViewer.page.getByTestId('results-podium')).toBeVisible();
     expect(
       await publicViewer.page.evaluate((key) => localStorage.getItem(key), 'gavel-xi:session'),
@@ -169,14 +174,18 @@ test('two directors complete every slot and receive the 100-metric verdict, reca
     await publicViewer.page.getByTestId('results-tab-metrics').click();
     await expect(publicViewer.page.getByTestId('metric-count')).toHaveText('100');
 
-    expect([...directors, publicViewer].flatMap(({ runtimeErrors }) => runtimeErrors)).toEqual([]);
-
+    await guest.page.getByTestId('results-tab-metrics').click();
+    await expect(guest.page).toHaveURL((url) => url.searchParams.get('view') === 'metrics');
+    await expect(host.page).toHaveURL((url) => url.searchParams.get('view') === 'share');
     await host.page.getByTestId('rematch-draft').click();
     await Promise.all(
       directors.map(({ page }) =>
         expect(page.getByTestId('lobby-screen')).toBeVisible({ timeout: 15_000 }),
       ),
     );
+    for (const { page } of directors) {
+      await expect(page).toHaveURL((url) => !url.searchParams.has('view'));
+    }
     await expect(host.page.getByTestId('lobby-room-code')).toHaveText(roomCode);
     await expect(guest.page.getByTestId('lobby-room-code')).toHaveText(roomCode);
     await expect(host.page.getByTestId('participant-count')).toContainText('2');
@@ -185,6 +194,14 @@ test('two directors complete every slot and receive the 100-metric verdict, reca
       .poll(async () => (await debugRoom(host.page, roomCode)).settings.formation)
       .toBe('4-4-2');
     await expect(guest.page.getByTestId('settings-formation')).toHaveValue('4-4-2');
+    await readyAndStart(host, [guest], roomCode);
+    await playToResults(host, directors, roomCode, { skipCeremony: false });
+    for (const { page } of directors) {
+      await expect(page.getByTestId('results-ceremony')).toBeVisible();
+      await expect(page.getByTestId('results-ceremony')).toHaveAttribute('data-phase', 'category');
+      await expect(page.getByTestId('results-tab-podium')).not.toBeVisible();
+    }
+    expect([...directors, publicViewer].flatMap(({ runtimeErrors }) => runtimeErrors)).toEqual([]);
   } finally {
     await closeDirectors(publicViewer ? [...directors, publicViewer] : directors);
   }

@@ -7,6 +7,7 @@ import './broadcast-room.css';
 import './tactical-pitch.css';
 import './audio-controls.css';
 import './metrics-lab.css';
+import './results-ceremony.css';
 
 export const metadata: Metadata = {
   title: 'Gavel XI — Build the XI. Break the Bank.',
