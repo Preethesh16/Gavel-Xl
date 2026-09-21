@@ -247,7 +247,8 @@ remembered for the current browser session, and rematches start a fresh ceremony
 The header's sound booth independently controls commentary and master volume; preferences persist
 on the device, while the host's room-wide mute takes precedence. Commentary uses an installed browser
 voice (preferring natural English voices when available), with local-voice fallback. Synthesized
-broadcast stings run locally and music ducks during speech. Audio starts after a user gesture.
+broadcast stings run locally. Background music plays only before the draft and stops when the auction
+starts; each player announcement and the match effects remain active. Audio starts after a user gesture.
 
 ## Completion tracking
 

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
   closeDirectors,
   createRoom,
+  debugRoom,
   joinRoom,
   newDirector,
   readyAndStart,
@@ -10,7 +11,7 @@ import {
   waitForPhase,
 } from './helpers';
 
-test('mixes auction music, natural speech, sold audio and the unsold cue without collisions', async ({
+test('stops lobby music for the auction while preserving every player announcement and transfer cue', async ({
   browser,
 }) => {
   const host = await newDirector(browser, 'Announcer');
@@ -138,13 +139,33 @@ test('mixes auction music, natural speech, sold audio and the unsold cue without
     await expect(guest.page.getByTestId('sound-toggle')).toBeDisabled();
     await host.page.getByTestId('settings-sound').check();
     await expect(host.page.getByTestId('sound-toggle')).toBeEnabled();
-    const lobbyPauseCount = await host.page.evaluate(
-      () =>
-        (
-          (window as typeof window & { __gavelAudioEvents?: string[] }).__gavelAudioEvents ?? []
-        ).filter((event) => event === 'background:pause').length,
-    );
+    const readAudioEvents = () =>
+      host.page.evaluate(
+        () =>
+          (window as typeof window & { __gavelAudioEvents?: string[] }).__gavelAudioEvents ?? [],
+      );
+    const readAnnouncements = () =>
+      host.page.evaluate(
+        () =>
+          (window as typeof window & { __gavelAnnouncements?: string[] }).__gavelAnnouncements ??
+          [],
+      );
+    const playerAnnouncement = async () => {
+      const candidate = (await debugRoom(host.page, roomCode)).currentLot?.candidate as
+        { kind: 'PLAYER' | 'MANAGER'; commonName?: string; fullName: string } | undefined;
+      expect(candidate).toBeTruthy();
+      return `Next ${candidate!.kind === 'MANAGER' ? 'manager' : 'player'} is ${candidate!.commonName || candidate!.fullName}.`;
+    };
+    await expect
+      .poll(async () =>
+        (await readAudioEvents()).filter((event) => event.startsWith('background:')).at(-1),
+      )
+      .toBe('background:play');
+    const lobbyPauseCount = (await readAudioEvents()).filter(
+      (event) => event === 'background:pause',
+    ).length;
     await readyAndStart(host, [guest], roomCode, { preserveLargeBudget: true });
+    const firstPlayerAnnouncement = await playerAnnouncement();
 
     await expect
       .poll(() =>
@@ -167,15 +188,22 @@ test('mixes auction music, natural speech, sold audio and the unsold cue without
         events: testWindow.__gavelAudioEvents ?? [],
       };
     });
-    expect(firstAudioState.announcements[0]).toMatch(/^Next (player|manager) is .+\.$/);
+    expect(firstAudioState.announcements).toEqual([firstPlayerAnnouncement]);
     expect(firstAudioState.voices).toEqual(['Microsoft Aria Online (Natural)']);
     expect(firstAudioState.events).toContain('background:play');
-    expect(firstAudioState.events.filter((event) => event === 'background:pause')).toHaveLength(
-      lobbyPauseCount,
+    expect(
+      firstAudioState.events.filter((event) => event === 'background:pause').length,
+    ).toBeGreaterThan(lobbyPauseCount);
+    expect(firstAudioState.events.filter((event) => event.startsWith('background:')).at(-1)).toBe(
+      'background:pause',
     );
+    const auctionBackgroundPlayCount = firstAudioState.events.filter(
+      (event) => event === 'background:play',
+    ).length;
 
     await settleOpenLot(directors, roomCode);
     await waitForPhase(host.page, roomCode, ['BIDDING'], 10_000);
+    const secondPlayerAnnouncement = await playerAnnouncement();
     await expect
       .poll(() =>
         host.page.evaluate(
@@ -185,6 +213,7 @@ test('mixes auction music, natural speech, sold audio and the unsold cue without
         ),
       )
       .toHaveLength(2);
+    expect(await readAnnouncements()).toEqual([firstPlayerAnnouncement, secondPlayerAnnouncement]);
     const mixedEvents = await host.page.evaluate(
       () => (window as typeof window & { __gavelAudioEvents?: string[] }).__gavelAudioEvents ?? [],
     );
@@ -196,8 +225,11 @@ test('mixes auction music, natural speech, sold audio and the unsold cue without
     expect(soldStart).toBeGreaterThanOrEqual(0);
     expect(soldEnd).toBeGreaterThan(soldStart);
     expect(nextSpeech).toBeGreaterThan(soldEnd);
-    expect(mixedEvents.filter((event) => event === 'background:pause')).toHaveLength(
-      lobbyPauseCount,
+    expect(mixedEvents.filter((event) => event === 'background:play')).toHaveLength(
+      auctionBackgroundPlayCount,
+    );
+    expect(mixedEvents.filter((event) => event.startsWith('background:')).at(-1)).toBe(
+      'background:pause',
     );
 
     for (const { page } of directors) {
@@ -323,6 +355,35 @@ test('mixes auction music, natural speech, sold audio and the unsold cue without
         () => (window as typeof window & { __gavelCues?: string[] }).__gavelCues ?? [],
       ),
     ).not.toContain('winner');
+
+    // Personal audio toggles must not restart lobby music during an auction.
+    await host.page.getByTestId('sound-toggle').click();
+    await expect(host.page.getByTestId('sound-toggle')).toHaveAttribute('aria-label', 'Mute sound');
+    await booth.click();
+    await host.page.getByTestId('voice-toggle').click();
+    await expect(host.page.getByTestId('voice-toggle')).toHaveAttribute('aria-pressed', 'true');
+    await host.page.keyboard.press('Escape');
+    const announcementsBeforeResume = await readAnnouncements();
+    await host.page.getByTestId('auction-pause').click();
+    await waitForPhase(host.page, roomCode, ['BIDDING'], 10_000);
+    const nextPlayerAnnouncement = await playerAnnouncement();
+    const priorOccurrences = announcementsBeforeResume.filter(
+      (line) => line === nextPlayerAnnouncement,
+    ).length;
+    await expect
+      .poll(
+        async () =>
+          (await readAnnouncements()).filter((line) => line === nextPlayerAnnouncement).length,
+      )
+      .toBe(priorOccurrences + 1);
+    await host.page.getByTestId('auction-pause').click();
+    await expect(host.page.getByTestId('auction-pause')).toContainText('RESUME');
+    expect((await readAudioEvents()).filter((event) => event === 'background:play')).toHaveLength(
+      auctionBackgroundPlayCount,
+    );
+    expect(
+      (await readAudioEvents()).filter((event) => event.startsWith('background:')).at(-1),
+    ).toBe('background:pause');
     expect(directors.flatMap(({ runtimeErrors }) => runtimeErrors)).toEqual([]);
   } finally {
     await closeDirectors(directors);

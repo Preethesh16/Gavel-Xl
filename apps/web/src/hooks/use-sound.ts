@@ -16,7 +16,7 @@ const SOUND_KEY = 'gavel-xi:sound';
 const VOICE_KEY = 'gavel-xi:voice';
 const VOLUME_KEY = 'gavel-xi:volume';
 
-export type MusicMode = 'lobby' | 'auction' | 'off';
+export type MusicMode = 'lobby' | 'off';
 
 type SoundTestWindow = typeof window & {
   __GAVEL_SOUND_TEST__?: boolean;
@@ -107,7 +107,7 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
   const updateMusicMix = useCallback(() => {
     const background = backgroundRef.current;
     if (background) {
-      const base = musicModeRef.current === 'auction' ? 0.09 : 0.16;
+      const base = 0.16;
       background.volume =
         (duckReasons.current.size ? Math.min(base, 0.025) : base) * volumeRef.current;
     }

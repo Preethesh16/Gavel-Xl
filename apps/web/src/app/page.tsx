@@ -29,13 +29,9 @@ const AUCTION_PHASES = [
 export default function Home() {
   const game = useGavelRoom();
   const [guideOpen, setGuideOpen] = useState(false);
-  const musicMode: MusicMode = !game.room
-    ? 'lobby'
-    : LOBBY_PHASES.includes(game.room.phase)
-      ? 'lobby'
-      : game.room.phase === 'RESULTS' || game.room.phase === 'COMPLETE'
-        ? 'off'
-        : 'auction';
+  // Stop the lobby track as soon as the draft starts preparing. Speech and
+  // match effects remain enabled throughout the auction and result ceremony.
+  const musicMode: MusicMode = !game.room || game.room.phase === 'LOBBY' ? 'lobby' : 'off';
   const sound = useSound(game.room?.settings.soundEnabled ?? true, game.moment, musicMode);
   const lastRoom = useRef<string | null>(null);
   const suggestedCode = useMemo(() => {
