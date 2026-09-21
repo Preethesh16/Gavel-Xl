@@ -29,6 +29,23 @@ function setup() {
 }
 
 describe('broadcast commentary scheduling', () => {
+  it('gives neural inference its budget before the spoken-line watchdog can expire', () => {
+    vi.useFakeTimers();
+    const settled = vi.fn();
+    const narrator = new BroadcastNarrator({
+      startupBudgetMs: () => 30_000,
+      speak: () => undefined,
+      cancel: vi.fn(),
+      onSpeaking: vi.fn(),
+    });
+    narrator.queue('Next player is Pedri.', 0, settled);
+    vi.advanceTimersByTime(30_000);
+    // The inference timeout can now fall back to the device and still finish speaking.
+    expect(settled).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(15_000);
+    expect(settled).toHaveBeenCalledOnce();
+  });
+
   it('replaces a delayed category line when the ceremony moves on', () => {
     const { narrator, lines } = setup();
     narrator.queue('Attack belongs to Athletic.', 400);

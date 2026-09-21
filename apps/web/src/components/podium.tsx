@@ -5,6 +5,7 @@ import { formatMoney, initials } from '@/lib/format';
 import { useEffect } from 'react';
 import { emitBroadcast, cancelBroadcastNarration } from '@/lib/broadcast-audio';
 import { BroadcastAtmosphere, BroadcastStrip, CountUp, TrophySculpture } from './broadcast-kit';
+import { HeadToHeadTape } from './head-to-head-tape';
 
 function PodiumPlace({ room, team }: { room: RoomView; team: TeamResultView }) {
   const member = room.members.find((candidate) => candidate.id === team.memberId);
@@ -179,25 +180,7 @@ export function Podium({
             );
           })}
         </div>
-        <div className="head-to-head">
-          <h3>HEAD-TO-HEAD TAPE</h3>
-          {evaluation.headToHead.map((match, index) => {
-            const home = room.members.find((member) => member.id === match.homeMemberId);
-            const away = room.members.find((member) => member.id === match.awayMemberId);
-            return (
-              <article key={`${match.homeMemberId}-${match.awayMemberId}-${index}`}>
-                <div>
-                  <span>{home?.name}</span>
-                  <strong>{match.homeGoals}</strong>
-                  <i>—</i>
-                  <strong>{match.awayGoals}</strong>
-                  <span>{away?.name}</span>
-                </div>
-                <p>{match.explanation}</p>
-              </article>
-            );
-          })}
-        </div>
+        <HeadToHeadTape room={room} evaluation={evaluation} />
       </section>
       <section className="financial-table">
         <header>

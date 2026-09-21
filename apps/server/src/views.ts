@@ -1,4 +1,5 @@
 import type { PublicLot, RoomMemberView, RoomView } from '@gavel-xi/shared';
+import { addMissingPenaltyShootouts } from '@gavel-xi/game-engine';
 import type { StoredLot, StoredMember, StoredRoom } from './domain.js';
 
 const FORMATION_SLOT_COUNTS: Record<StoredRoom['settings']['formation'], number> = {
@@ -61,7 +62,14 @@ export function roomView(room: StoredRoom, serverNow = Date.now()): RoomView {
     resolvedCycles: room.resolvedCycles,
     totalCycles: room.totalCycles,
     checkpoint: structuredClone(room.checkpoint),
-    evaluation: structuredClone(room.evaluation),
+    // Older saved results predate shootouts. Derive only missing tied-match
+    // outcomes from their frozen squads and seed; never rerun the draft ranking.
+    evaluation:
+      room.evaluation === null
+        ? null
+        : structuredClone(
+            addMissingPenaltyShootouts(room.evaluation, room.squads, room.settings.formLookback),
+          ),
     replay: replayVisible ? structuredClone(room.replay) : [],
     serverNow,
   };

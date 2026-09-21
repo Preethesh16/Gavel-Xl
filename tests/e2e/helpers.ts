@@ -82,6 +82,8 @@ export async function newDirector(
   options: BrowserContextOptions = {},
 ): Promise<Director> {
   const context = await browser.newContext({ reducedMotion: 'reduce', ...options });
+  // Game-flow tests use the device voice; neural audio has its own worker tests.
+  await context.addInitScript(() => localStorage.setItem('gavel-xi:commentator', 'device'));
   const page = await context.newPage();
   return { context, page, name, runtimeErrors: observeRuntimeErrors(page) };
 }

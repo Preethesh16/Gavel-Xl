@@ -29,6 +29,7 @@ test('stops lobby music for the auction while preserving every player announceme
         __gavelFailNextNatural?: boolean;
       };
       testWindow.__GAVEL_SOUND_TEST__ = true;
+      localStorage.setItem('gavel-xi:commentator', 'device');
       testWindow.__gavelAnnouncements = [];
       testWindow.__gavelVoices = [];
       testWindow.__gavelAudioEvents = [];
@@ -134,10 +135,12 @@ test('stops lobby music for the auction while preserving every player announceme
     await joinRoom(guest.page, roomCode, guest.name);
     await setLargeBudget(host.page, roomCode);
     // The host's room-wide setting must win over an individual saved 'on' preference.
-    await host.page.getByTestId('settings-sound').uncheck();
+    // This is an authoritative server setting: the checkbox changes after the
+    // socket acknowledgement, not synchronously during Playwright's click.
+    await host.page.getByTestId('settings-sound').click();
     await expect(host.page.getByTestId('sound-toggle')).toBeDisabled();
     await expect(guest.page.getByTestId('sound-toggle')).toBeDisabled();
-    await host.page.getByTestId('settings-sound').check();
+    await host.page.getByTestId('settings-sound').click();
     await expect(host.page.getByTestId('sound-toggle')).toBeEnabled();
     const readAudioEvents = () =>
       host.page.evaluate(

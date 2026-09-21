@@ -245,10 +245,21 @@ controls stay available. Each scene waits for its narration to finish before adv
 pause playback; reduced motion removes animation while retaining the sequence. Completed shows are
 remembered for the current browser session, and rematches start a fresh ceremony.
 The header's sound booth independently controls commentary and master volume; preferences persist
-on the device, while the host's room-wide mute takes precedence. Commentary uses an installed browser
-voice (preferring natural English voices when available), with local-voice fallback. Synthesized
-broadcast stings run locally. Background music plays only before the draft and stops when the auction
+on the device, while the host's room-wide mute takes precedence. Commentary defaults to a natural
+Kokoro voice generated locally in a worker, with American and British voices, preview, loading status
+and an explicit device-voice fallback. The first use downloads and caches about 120 MB; no API key is
+needed. See [natural commentary](docs/neural-commentary.md) for runtime sources and limitations.
+Synthesized broadcast stings run locally. Background music plays only before the draft and stops when the auction
 starts; each player announcement and the match effects remain active. Audio starts after a user gesture.
+
+Tied head-to-head projections go to a seeded penalty shootout: five alternating kicks, an early
+finish when a team cannot catch up, then paired sudden death. Takers use their finishing, composure
+and technique against the opposing goalkeeper; every eligible player takes a turn before repeating.
+The result includes the kick log and a replayable pitch animation. These match tiebreaks leave the
+100-metric draft ranking unchanged. Saved results receive missing shootouts from their original
+seed and frozen squads. As a simulator safeguard, after 100 tied sudden-death pairs the final pair
+is sampled conditional on a decisive outcome and explicitly marked in the result.
+The kick sequence follows [IFAB Law 10](https://www.theifab.com/laws/latest/determining-the-outcome-of-a-match/).
 
 ## Completion tracking
 

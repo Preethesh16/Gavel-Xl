@@ -207,6 +207,27 @@ export interface AnalystReportView {
   closingLine: string;
 }
 
+export interface PenaltyKickView {
+  /** One-based pair of kicks; rounds after five are sudden death. */
+  round: number;
+  memberId: string;
+  takerId: string | null;
+  takerName: string;
+  outcome: 'SCORED' | 'SAVED' | 'MISSED';
+  homeGoals: number;
+  awayGoals: number;
+}
+
+export interface PenaltyShootoutView {
+  homeGoals: number;
+  awayGoals: number;
+  winnerId: string;
+  kicks: PenaltyKickView[];
+  suddenDeath: boolean;
+  /** The bounded simulator conditions its last pair on a decisive outcome. */
+  resolution: 'STANDARD' | 'CONDITIONED_SUDDEN_DEATH';
+}
+
 export interface EvaluationView {
   metrics: MetricScoreView[];
   teams: TeamResultView[];
@@ -216,6 +237,8 @@ export interface EvaluationView {
     awayMemberId: string;
     homeGoals: number;
     awayGoals: number;
+    /** Absent on non-draws and results saved before shootouts were introduced. */
+    penaltyShootout?: PenaltyShootoutView;
     explanation: string;
   }>;
   seed: string;

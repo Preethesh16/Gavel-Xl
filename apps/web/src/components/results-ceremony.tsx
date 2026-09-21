@@ -436,9 +436,10 @@ export function ResultsCeremony({
       data-paused={halted}
       onClickCapture={(event) => {
         if (
-          step.phase === 'lineup' &&
           event.target instanceof Element &&
-          event.target.closest('.tactical-player, .tactical-manager')
+          ((step.phase === 'lineup' &&
+            event.target.closest('.tactical-player, .tactical-manager')) ||
+            event.target.closest('[data-pause-ceremony]'))
         )
           setPaused(true);
       }}

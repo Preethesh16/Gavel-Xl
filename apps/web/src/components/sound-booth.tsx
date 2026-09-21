@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import type { CommentaryVoice } from '@/lib/neural-commentary';
 import { MuteIcon, VolumeIcon } from './icons';
 
 export interface SoundBoothProps {
@@ -8,6 +9,12 @@ export interface SoundBoothProps {
   soundAvailable: boolean;
   voiceEnabled: boolean;
   voiceSupported: boolean;
+  commentator: CommentaryVoice;
+  voiceStatus: string;
+  voiceLoading: boolean;
+  neuralReady: boolean;
+  onCommentatorChange: (voice: CommentaryVoice) => void;
+  onVoicePreview: () => void;
   speaking: boolean;
   volume: number;
   onSoundToggle: () => void;
@@ -20,6 +27,12 @@ export function SoundBooth({
   soundAvailable,
   voiceEnabled,
   voiceSupported,
+  commentator,
+  voiceStatus,
+  voiceLoading,
+  neuralReady,
+  onCommentatorChange,
+  onVoicePreview,
   speaking,
   volume,
   onSoundToggle,
@@ -101,6 +114,38 @@ export function SoundBooth({
             </span>
             <strong>{voiceEnabled ? 'ON' : 'OFF'}</strong>
           </button>
+          <div className="broadcast-audio__commentator">
+            <label htmlFor="commentator-voice">COMMENTATOR</label>
+            <select
+              id="commentator-voice"
+              aria-label="Commentator voice"
+              value={commentator}
+              disabled={!soundAvailable || !soundEnabled || !voiceEnabled}
+              onChange={(event) => onCommentatorChange(event.target.value as CommentaryVoice)}
+            >
+              <option value="af_heart">Heart · natural American</option>
+              <option value="bf_emma">Emma · natural British</option>
+              <option value="device">Browser / device voice</option>
+            </select>
+            <small role="status" data-testid="commentator-status">
+              {voiceStatus}
+            </small>
+            {commentator !== 'device' && !neuralReady ? (
+              <small>First use downloads about 120 MB, then caches it in this browser.</small>
+            ) : null}
+            <button
+              type="button"
+              data-testid="voice-preview"
+              onClick={onVoicePreview}
+              disabled={!soundAvailable || !soundEnabled || !voiceEnabled || voiceLoading}
+            >
+              {voiceLoading
+                ? 'LOADING VOICE…'
+                : commentator !== 'device' && !neuralReady
+                  ? 'LOAD NATURAL VOICE'
+                  : 'PREVIEW VOICE'}
+            </button>
+          </div>
           <label className="broadcast-audio__volume">
             <span>
               MASTER VOLUME <output>{Math.round(volume * 100)}%</output>

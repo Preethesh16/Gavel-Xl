@@ -9,12 +9,19 @@ import {
   type BroadcastAudioEvent,
   type SoundCue,
 } from '@/lib/broadcast-audio';
+import {
+  getNeuralCommentary,
+  neuralSynthesisBudget,
+  type CommentaryVoice,
+  type NeuralStatus,
+} from '@/lib/neural-commentary';
 import { createStadiumBus, playStadiumCue } from '@/lib/stadium-synth';
 import type { AuctionMoment } from './use-gavel-room';
 
 const SOUND_KEY = 'gavel-xi:sound';
 const VOICE_KEY = 'gavel-xi:voice';
 const VOLUME_KEY = 'gavel-xi:volume';
+const COMMENTATOR_KEY = 'gavel-xi:commentator';
 
 export type MusicMode = 'lobby' | 'off';
 
@@ -80,6 +87,12 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [volume, setVolumeState] = useState(0.8);
   const [speaking, setSpeaking] = useState(false);
+  const [commentator, setCommentatorState] = useState<CommentaryVoice>('af_heart');
+  const [neuralStatus, setNeuralStatus] = useState<NeuralStatus>({ state: 'idle', progress: 0 });
+  const [voiceFallback, setVoiceFallback] = useState(false);
+  const commentatorRef = useRef(commentator);
+  const neuralSourcesRef = useRef(new Set<AudioBufferSourceNode>());
+  const neuralGainRef = useRef<GainNode | null>(null);
   const enabled = preferencesReady && roomDefault && preference;
   const enabledRef = useRef(enabled);
   const voiceRef = useRef(voicePreference);
@@ -103,6 +116,7 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
   voiceRef.current = voicePreference;
   volumeRef.current = volume;
   musicModeRef.current = musicMode;
+  commentatorRef.current = commentator;
 
   const updateMusicMix = useCallback(() => {
     const background = backgroundRef.current;
@@ -111,6 +125,7 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
       background.volume =
         (duckReasons.current.size ? Math.min(base, 0.025) : base) * volumeRef.current;
     }
+    if (neuralGainRef.current) neuralGainRef.current.gain.value = volumeRef.current;
     if (soldRef.current) soldRef.current.volume = 0.78 * volumeRef.current;
     if (effectsBusRef.current && contextRef.current) {
       effectsBusRef.current.gain.setTargetAtTime(
@@ -133,61 +148,178 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
   const getNarrator = useCallback(() => {
     if (!narratorRef.current) {
       narratorRef.current = new BroadcastNarrator({
+        startupBudgetMs: (message) =>
+          commentatorRef.current !== 'device' && getNeuralCommentary().ready
+            ? neuralSynthesisBudget(message)
+            : 0,
         speak: (message, done) => {
           const generation = ++speechGeneration.current;
           if (
             !enabledRef.current ||
             !voiceRef.current ||
             volumeRef.current === 0 ||
-            !audioAllowed() ||
-            !('speechSynthesis' in window)
+            !audioAllowed()
           ) {
             done();
             return;
           }
-          const voices = window.speechSynthesis
-            .getVoices()
-            .filter((voice) => voice.lang.toLowerCase().startsWith('en'))
-            .sort((left, right) => voiceScore(right) - voiceScore(left));
-          const preferred = voices[0] ?? null;
-          const localFallback =
-            voices.find((voice) => voice.localService && voice !== preferred) ?? null;
-          const createLine = (voice: SpeechSynthesisVoice | null, canRetry: boolean) => {
-            const utterance = new SpeechSynthesisUtterance(message);
-            // Voices may load asynchronously. The device default remains a fallback.
-            utterance.voice = voice;
-            utterance.lang = voice?.lang ?? 'en-GB';
-            utterance.rate = 1.06;
-            utterance.pitch = 0.96;
-            utterance.volume = volumeRef.current;
-            utterance.onend = done;
-            utterance.onerror = (event) => {
-              // A downloaded voice can fail offline. Try the installed/default voice once;
-              // an intentional cancel must never restart a stale line.
-              if (
-                canRetry &&
-                generation === speechGeneration.current &&
-                event.error !== 'canceled' &&
-                event.error !== 'interrupted' &&
-                enabledRef.current &&
-                voiceRef.current
-              ) {
-                try {
-                  window.speechSynthesis.speak(createLine(localFallback, false));
-                  return;
-                } catch {
-                  // Both engines are optional; the visible broadcast remains complete.
-                }
+          const speakDevice = (text = message) => {
+            try {
+              if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+                done();
+                return;
               }
+              const voices = window.speechSynthesis
+                .getVoices()
+                .filter((voice) => voice.lang.toLowerCase().startsWith('en'))
+                .sort((left, right) => voiceScore(right) - voiceScore(left));
+              const preferred = voices[0] ?? null;
+              const localFallback =
+                voices.find((voice) => voice.localService && voice !== preferred) ?? null;
+              const createLine = (voice: SpeechSynthesisVoice | null, canRetry: boolean) => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                // Voices may load asynchronously. The device default remains a fallback.
+                utterance.voice = voice;
+                utterance.lang = voice?.lang ?? 'en-GB';
+                utterance.rate = 1;
+                utterance.pitch = 1;
+                utterance.volume = volumeRef.current;
+                utterance.onend = done;
+                utterance.onerror = (event) => {
+                  // A downloaded voice can fail offline. Try the installed/default voice once;
+                  // an intentional cancel must never restart a stale line.
+                  if (
+                    canRetry &&
+                    generation === speechGeneration.current &&
+                    event.error !== 'canceled' &&
+                    event.error !== 'interrupted' &&
+                    enabledRef.current &&
+                    voiceRef.current
+                  ) {
+                    try {
+                      window.speechSynthesis.speak(createLine(localFallback, false));
+                      return;
+                    } catch {
+                      // Both engines are optional; the visible broadcast remains complete.
+                    }
+                  }
+                  done();
+                };
+                return utterance;
+              };
+              window.speechSynthesis.resume();
+              window.speechSynthesis.speak(createLine(preferred, Boolean(preferred)));
+            } catch {
               done();
-            };
-            return utterance;
+            }
           };
-          window.speechSynthesis.resume();
-          window.speechSynthesis.speak(createLine(preferred, Boolean(preferred)));
+          const neural = getNeuralCommentary();
+          if (commentatorRef.current === 'device' || !neural.ready) {
+            setVoiceFallback(commentatorRef.current !== 'device');
+            speakDevice();
+            return;
+          }
+          let generated = false;
+          let playedChunk = false;
+          let scheduledWords = 0;
+          let remainingDeviceText: string | null = null;
+          let nextStart = 0;
+          let decoding = Promise.resolve();
+          let playbackFailed = false;
+          const finishNeural = () => {
+            if (generation !== speechGeneration.current) return;
+            if (generated && neuralSourcesRef.current.size === 0) {
+              neuralGainRef.current?.disconnect();
+              neuralGainRef.current = null;
+              if (remainingDeviceText) {
+                const remaining = remainingDeviceText;
+                remainingDeviceText = null;
+                speakDevice(remaining);
+              } else done();
+            }
+          };
+          void neural
+            .synthesize(message, commentatorRef.current, (wav, text) => {
+              decoding = decoding
+                .then(async () => {
+                  if (generation !== speechGeneration.current || playbackFailed) return;
+                  const context = contextRef.current ?? new AudioContext();
+                  contextRef.current = context;
+                  const buffer = await context.decodeAudioData(wav);
+                  if (generation !== speechGeneration.current) return;
+                  await context.resume();
+                  if (generation !== speechGeneration.current) return;
+                  const source = context.createBufferSource();
+                  const gain = neuralGainRef.current ?? context.createGain();
+                  if (!neuralGainRef.current) gain.connect(context.destination);
+                  neuralGainRef.current = gain;
+                  gain.gain.value = volumeRef.current;
+                  source.buffer = buffer;
+                  source.connect(gain);
+                  source.onended = () => {
+                    source.disconnect();
+                    neuralSourcesRef.current.delete(source);
+                    finishNeural();
+                  };
+                  nextStart = Math.max(context.currentTime + 0.015, nextStart);
+                  try {
+                    source.start(nextStart);
+                  } catch (error) {
+                    source.disconnect();
+                    throw error;
+                  }
+                  neuralSourcesRef.current.add(source);
+                  nextStart += buffer.duration;
+                  playedChunk = true;
+                  scheduledWords += text.trim().split(/\s+/).filter(Boolean).length;
+                  setVoiceFallback(false);
+                })
+                .catch(() => {
+                  playbackFailed = true;
+                });
+            })
+            .then(async () => {
+              await decoding;
+              if (generation !== speechGeneration.current) return;
+              if (playbackFailed && !playedChunk) {
+                neuralGainRef.current?.disconnect();
+                neuralGainRef.current = null;
+                setVoiceFallback(true);
+                speakDevice();
+                return;
+              }
+              if (playbackFailed) {
+                setVoiceFallback(true);
+                remainingDeviceText = message.trim().split(/\s+/).slice(scheduledWords).join(' ');
+              }
+              generated = true;
+              finishNeural();
+            })
+            .catch(async () => {
+              await decoding;
+              if (generation !== speechGeneration.current) return;
+              if (playedChunk) {
+                setVoiceFallback(true);
+                remainingDeviceText = message.trim().split(/\s+/).slice(scheduledWords).join(' ');
+                generated = true;
+                finishNeural();
+                return;
+              }
+              setVoiceFallback(true);
+              speakDevice();
+            });
         },
         cancel: () => {
           speechGeneration.current += 1;
+          getNeuralCommentary().cancel();
+          for (const source of neuralSourcesRef.current) {
+            source.onended = null;
+            source.stop();
+            source.disconnect();
+          }
+          neuralSourcesRef.current.clear();
+          neuralGainRef.current?.disconnect();
+          neuralGainRef.current = null;
           if ('speechSynthesis' in window) window.speechSynthesis.cancel();
         },
         onSpeaking: (active) => {
@@ -207,9 +339,7 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
         !voiceRef.current ||
         volumeRef.current === 0 ||
         !unlockedRef.current ||
-        !audioAllowed() ||
-        !('speechSynthesis' in window) ||
-        !('SpeechSynthesisUtterance' in window)
+        !audioAllowed()
       ) {
         narratorRef.current?.cancel();
         settle();
@@ -239,8 +369,18 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
   useEffect(() => {
     setPreference(storedPreference(SOUND_KEY, true));
     setVoicePreference(storedPreference(VOICE_KEY, true));
-    setVoiceSupported('speechSynthesis' in window && 'SpeechSynthesisUtterance' in window);
+    setVoiceSupported(
+      ('Worker' in window && 'WebAssembly' in window) ||
+        ('speechSynthesis' in window && 'SpeechSynthesisUtterance' in window),
+    );
     try {
+      const savedCommentator = window.localStorage.getItem(COMMENTATOR_KEY);
+      if (
+        savedCommentator === 'device' ||
+        savedCommentator === 'af_heart' ||
+        savedCommentator === 'bf_emma'
+      )
+        setCommentatorState(savedCommentator);
       const saved = window.localStorage.getItem(VOLUME_KEY);
       const parsed = saved === null ? 0.8 : Number(saved);
       setVolumeState(Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : 0.8);
@@ -249,6 +389,15 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
     }
     setPreferencesReady(true);
   }, []);
+
+  useEffect(
+    () =>
+      getNeuralCommentary().subscribe((status) => {
+        setNeuralStatus(status);
+        if (status.state === 'ready') setVoiceFallback(false);
+      }),
+    [],
+  );
 
   useEffect(() => {
     const background = new Audio('/audio/background-music.mp3');
@@ -316,6 +465,8 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
           }
           if (musicModeRef.current !== 'off')
             void backgroundRef.current?.play().catch(() => undefined);
+          if (voiceRef.current && commentatorRef.current !== 'device')
+            getNeuralCommentary().prepare();
           if (voiceRef.current && 'speechSynthesis' in window) {
             window.speechSynthesis.resume();
             const silent = new SpeechSynthesisUtterance(' ');
@@ -486,6 +637,8 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
       const next = !current;
       voiceRef.current = next;
       persist(VOICE_KEY, next ? 'on' : 'off');
+      if (next && unlockedRef.current && commentatorRef.current !== 'device' && audioAllowed())
+        getNeuralCommentary().prepare();
       if (!next) {
         cancelNarration();
         soldRef.current?.pause();
@@ -510,11 +663,53 @@ export function useSound(roomDefault: boolean, moment: AuctionMoment | null, mus
     [cancelNarration, updateMusicMix],
   );
 
+  const setCommentator = useCallback(
+    (next: CommentaryVoice) => {
+      commentatorRef.current = next;
+      setCommentatorState(next);
+      persist(COMMENTATOR_KEY, next);
+      cancelNarration();
+      setVoiceFallback(false);
+      if (next !== 'device' && enabledRef.current && voiceRef.current && audioAllowed())
+        getNeuralCommentary().prepare(true);
+    },
+    [cancelNarration],
+  );
+
+  const previewVoice = useCallback(() => {
+    if (!enabledRef.current || !voiceRef.current || !audioAllowed()) return;
+    unlockedRef.current = true;
+    if (commentatorRef.current !== 'device' && !getNeuralCommentary().ready) {
+      getNeuralCommentary().prepare(true);
+      return;
+    }
+    announce('Welcome to Gavel Eleven. The stage is set. Who will build the winning team?', 0);
+  }, [announce]);
+
+  const voiceStatus =
+    commentator === 'device'
+      ? 'Device voice · quality depends on your browser'
+      : neuralStatus.state === 'loading'
+        ? `Loading natural voice${neuralStatus.progress ? ` · ${neuralStatus.progress}%` : ''}. Device voice for now.`
+        : neuralStatus.state === 'unavailable'
+          ? 'Natural voice unavailable · using device voice. Retry below.'
+          : neuralStatus.state === 'ready'
+            ? voiceFallback
+              ? 'Device fallback · natural narration unavailable'
+              : 'Natural voice ready · runs on your device'
+            : 'Natural voice loads after your first interaction';
+
   return {
     enabled,
     available: roomDefault,
     voiceEnabled: voicePreference,
     voiceSupported,
+    commentator,
+    voiceStatus,
+    voiceLoading: neuralStatus.state === 'loading',
+    neuralReady: neuralStatus.state === 'ready',
+    setCommentator,
+    previewVoice,
     speaking,
     volume,
     toggle,

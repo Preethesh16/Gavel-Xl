@@ -23,6 +23,12 @@ export function RoomHeader({
   soundAvailable,
   voiceEnabled,
   voiceSupported,
+  commentator,
+  voiceStatus,
+  voiceLoading,
+  neuralReady,
+  onCommentatorChange,
+  onVoicePreview,
   speaking,
   volume,
   onSoundToggle,
@@ -67,6 +73,12 @@ export function RoomHeader({
           soundAvailable={soundAvailable}
           voiceEnabled={voiceEnabled}
           voiceSupported={voiceSupported}
+          commentator={commentator}
+          voiceStatus={voiceStatus}
+          voiceLoading={voiceLoading}
+          neuralReady={neuralReady}
+          onCommentatorChange={onCommentatorChange}
+          onVoicePreview={onVoicePreview}
           speaking={speaking}
           volume={volume}
           onSoundToggle={onSoundToggle}

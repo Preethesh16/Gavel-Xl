@@ -10,6 +10,7 @@ import type {
 } from '@gavel-xi/shared';
 import { METRIC_CATEGORIES, METRIC_NAMES } from './metrics.js';
 import { formRating, type FormLookback } from './ratings.js';
+import { simulatePenaltyShootout } from './penalty-shootout.js';
 
 export const COVER_STAR_BONUS = 4;
 export const COVER_TEAM_BONUS = COVER_STAR_BONUS / 2;
@@ -1054,6 +1055,46 @@ function topBy(teams: TeamFeatures[], value: (team: TeamFeatures) => number): Te
   )[0]!;
 }
 
+/** Upgrade saved match draws without recalculating any historical ratings. */
+export function addMissingPenaltyShootouts(
+  evaluation: EvaluationView,
+  squads: SquadEntryView[],
+  formLookback: FormLookback,
+): EvaluationView {
+  if (
+    !evaluation.headToHead.some(
+      (match) => match.homeGoals === match.awayGoals && !match.penaltyShootout,
+    )
+  ) {
+    return evaluation;
+  }
+  const features = new Map<string, TeamFeatures>();
+  const team = (memberId: string): TeamFeatures => {
+    let result = features.get(memberId);
+    if (!result) {
+      // Budget does not participate in penalty abilities or goalkeeper ratings.
+      result = buildFeatures(memberId, squads, 0, formLookback);
+      features.set(memberId, result);
+    }
+    return result;
+  };
+  return {
+    ...evaluation,
+    headToHead: evaluation.headToHead.map((match) =>
+      match.homeGoals === match.awayGoals && !match.penaltyShootout
+        ? {
+            ...match,
+            penaltyShootout: simulatePenaltyShootout(
+              team(match.homeMemberId),
+              team(match.awayMemberId),
+              evaluation.seed,
+            ),
+          }
+        : match,
+    ),
+  };
+}
+
 export function evaluateGame(input: EvaluationInput): EvaluationView {
   if (input.memberIds.length < 2) throw new Error('Evaluation requires at least two teams');
   const teams = input.memberIds.map((memberId) =>
@@ -1326,12 +1367,17 @@ export function evaluateGame(input: EvaluationInput): EvaluationView {
       const awayGoals = Math.max(0, Math.round(awayExpected));
       const homeResult = resultByMember.get(home.memberId)!;
       const awayResult = resultByMember.get(away.memberId)!;
+      const penaltyShootout =
+        homeGoals === awayGoals ? simulatePenaltyShootout(home, away, input.seed) : undefined;
       headToHead.push({
         homeMemberId: home.memberId,
         awayMemberId: away.memberId,
         homeGoals,
         awayGoals,
-        explanation: `${homeResult.strengths[0]} meets ${awayResult.strengths[0]}; the model separates them through attack, defensive resistance and manager fit.`,
+        ...(penaltyShootout ? { penaltyShootout } : {}),
+        explanation: penaltyShootout
+          ? `Level at ${homeGoals}–${awayGoals}; the ${penaltyShootout.winnerId === home.memberId ? 'home' : 'away'} side wins ${penaltyShootout.homeGoals}–${penaltyShootout.awayGoals} on penalties${penaltyShootout.suddenDeath ? ' after sudden death' : ''}. Taker finishing, composure and technique meet the opposing goalkeeper.`
+          : `${homeResult.strengths[0]} meets ${awayResult.strengths[0]}; attack, defensive resistance and manager fit produce a ${homeGoals}–${awayGoals} scoreline.`,
       });
     }
   }

@@ -33,6 +33,12 @@ export function PublicResults({ room, viewer }: { room: RoomView; viewer: RoomMe
           soundAvailable={sound.available}
           voiceEnabled={sound.voiceEnabled}
           voiceSupported={sound.voiceSupported}
+          commentator={sound.commentator}
+          voiceStatus={sound.voiceStatus}
+          voiceLoading={sound.voiceLoading}
+          neuralReady={sound.neuralReady}
+          onCommentatorChange={sound.setCommentator}
+          onVoicePreview={sound.previewVoice}
           speaking={sound.speaking}
           volume={sound.volume}
           onSoundToggle={sound.toggle}

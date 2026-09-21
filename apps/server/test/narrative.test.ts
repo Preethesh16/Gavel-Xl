@@ -341,4 +341,44 @@ describe('optional Groq evaluation narrative', () => {
     expect(merged.teams).toEqual(base.teams);
     expect(merged.metrics).toEqual(base.metrics);
   });
+
+  it('retains the authoritative penalty result and kicks when narrative enrichment changes them', () => {
+    const base = evaluation();
+    base.headToHead[0]!.awayGoals = 2;
+    base.headToHead[0]!.penaltyShootout = {
+      homeGoals: 3,
+      awayGoals: 0,
+      winnerId: 'alpha',
+      suddenDeath: false,
+      resolution: 'STANDARD',
+      kicks: [1, 2, 3].flatMap((round) => [
+        {
+          round,
+          memberId: 'alpha',
+          takerId: `alpha-${round}`,
+          takerName: `Alpha ${round}`,
+          outcome: 'SCORED' as const,
+          homeGoals: round,
+          awayGoals: 0,
+        },
+        {
+          round,
+          memberId: 'beta',
+          takerId: `beta-${round}`,
+          takerName: `Beta ${round}`,
+          outcome: 'SAVED' as const,
+          homeGoals: round,
+          awayGoals: 0,
+        },
+      ]),
+    };
+    const proposed = structuredClone(base);
+    proposed.headToHead[0]!.penaltyShootout!.winnerId = 'beta';
+    proposed.headToHead[0]!.penaltyShootout!.awayGoals = 99;
+    proposed.headToHead[0]!.penaltyShootout!.kicks = [];
+    const merged = mergeEvaluationNarrative(base, proposed);
+    expect(merged.headToHead[0]!.penaltyShootout).toEqual(base.headToHead[0]!.penaltyShootout);
+    expect(merged.metrics).toEqual(base.metrics);
+    expect(merged.teams).toEqual(base.teams);
+  });
 });

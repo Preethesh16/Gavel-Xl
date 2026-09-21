@@ -78,6 +78,8 @@
   top: calc(100% + 15px);
   width: 310px;
   max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 110px);
+  overflow-y: auto;
   padding: 22px;
   border: 1px solid rgb(241 191 0 / 40%);
   border-radius: 16px;
@@ -240,4 +242,39 @@
   .broadcast-audio .broadcast-audio__meter i {
     animation: none !important;
   }
+}
+.broadcast-audio__commentator {
+  display: grid;
+  gap: 9px;
+  margin-top: 20px;
+}
+.broadcast-audio__commentator > label {
+  color: #f1bf00;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+.broadcast-audio__commentator select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #415168;
+  border-radius: 7px;
+  color: #fff4dc;
+  background: #102842;
+  font-size: 12px;
+}
+.broadcast-audio__commentator small {
+  color: #a9bbd3;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.broadcast-audio__commentator button {
+  padding: 9px 10px;
+  border: 1px solid rgb(241 191 0 / 35%);
+  border-radius: 7px;
+  color: #f1bf00;
+  background: rgb(241 191 0 / 8%);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
 }

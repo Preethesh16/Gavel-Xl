@@ -58,6 +58,8 @@ export function cancelBroadcastNarration(): void {
 }
 
 interface NarrationDriver {
+  /** Optional inference startup budget, separate from the spoken line duration. */
+  startupBudgetMs?: number | ((message: string) => number);
   speak: (message: string, done: () => void) => void;
   cancel: () => void;
   onSpeaking: (speaking: boolean) => void;
@@ -129,7 +131,13 @@ export class BroadcastNarrator {
         // Some browser voices never send end/error; never leave the soundtrack ducked.
         // Longer team-analysis scripts need time to finish at normal speaking speed.
         const words = message.trim().split(/\s+/).filter(Boolean).length;
-        const speechTimeout = Math.min(60_000, Math.max(15_000, words * 500 + 5_000));
+        const startupBudget =
+          typeof this.driver.startupBudgetMs === 'function'
+            ? this.driver.startupBudgetMs(message)
+            : (this.driver.startupBudgetMs ?? 0);
+        const speechTimeout =
+          Math.min(60_000, Math.max(15_000, words * 500 + 5_000)) +
+          Math.min(180_000, Math.max(0, startupBudget));
         this.watchdog = setTimeout(() => {
           if (generation !== this.generation) return;
           try {

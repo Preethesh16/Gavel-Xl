@@ -90,6 +90,7 @@ async function installHeldNarrator(page: Page): Promise<void> {
     testWindow.__ceremonySpeech = { lines: [], active: null, cancellations: 0 };
     localStorage.setItem('gavel-xi:sound', 'on');
     localStorage.setItem('gavel-xi:voice', 'on');
+    localStorage.setItem('gavel-xi:commentator', 'device');
     localStorage.setItem('gavel-xi:volume', '0.8');
 
     class HeldUtterance {

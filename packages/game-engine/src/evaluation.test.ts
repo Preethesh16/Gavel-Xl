@@ -1,6 +1,11 @@
 import type { EvaluationView, Position, SquadEntryView } from '@gavel-xi/shared';
 import { describe, expect, it } from 'vitest';
-import { COVER_STAR_BONUS, COVER_TEAM_BONUS, evaluateGame } from './evaluation.js';
+import {
+  COVER_STAR_BONUS,
+  COVER_TEAM_BONUS,
+  addMissingPenaltyShootouts,
+  evaluateGame,
+} from './evaluation.js';
 import { METRIC_CATEGORIES, METRIC_NAMES } from './metrics.js';
 import { fixtureSnapshot } from './test-fixtures.js';
 
@@ -128,6 +133,53 @@ describe('100-metric evaluation', () => {
         expect.objectContaining({ title: 'Cover Team Boost', memberId: 'alpha' }),
       ]),
     );
+  });
+
+  it('resolves tied head-to-head matches on penalties without changing the metrics or ranking', () => {
+    const entries = semanticSquads();
+    const first = evaluate(entries);
+    expect(first.headToHead[0]?.homeGoals).toBe(first.headToHead[0]?.awayGoals);
+    expect(first.headToHead[0]?.penaltyShootout?.winnerId).toBeTruthy();
+    const anotherSeed = evaluateGame({
+      memberIds: ['alpha', 'beta'],
+      squads: entries,
+      initialBudgets: { alpha: 750_000_000, beta: 750_000_000 },
+      seed: 'another-shootout',
+      seedCommitment: 'another',
+      formLookback: 'CURRENT_SEASON',
+    });
+    expect(anotherSeed.metrics).toEqual(first.metrics);
+    expect(anotherSeed.teams).toEqual(first.teams);
+  });
+
+  it('adds matching shootouts to old draws while preserving all existing scores and copy', () => {
+    const entries = semanticSquads();
+    const current = evaluate(entries);
+    const legacy = structuredClone(current);
+    for (const match of legacy.headToHead) delete match.penaltyShootout;
+    const repaired = addMissingPenaltyShootouts(legacy, entries, 'CURRENT_SEASON');
+    expect(repaired).toEqual(current);
+    expect(repaired.metrics).toBe(legacy.metrics);
+    expect(repaired.teams).toBe(legacy.teams);
+    expect(legacy.headToHead[0]?.penaltyShootout).toBeUndefined();
+    expect(addMissingPenaltyShootouts(repaired, entries, 'CURRENT_SEASON')).toBe(repaired);
+  });
+
+  it('does not add shootouts to decisive match scores', () => {
+    const entries = semanticSquads();
+    for (const { memberId, candidate } of entries) {
+      const ability = memberId === 'alpha' ? 100 : 0;
+      candidate.currentFormRating = ability;
+      for (const key of Object.keys(candidate.role) as Array<keyof typeof candidate.role>)
+        candidate.role[key] = ability;
+      if (candidate.tactics)
+        for (const key of Object.keys(candidate.tactics) as Array<keyof typeof candidate.tactics>)
+          candidate.tactics[key] = ability;
+    }
+    const result = evaluate(entries);
+    expect(result.headToHead[0]?.homeGoals).not.toBe(result.headToHead[0]?.awayGoals);
+    expect(result.headToHead[0]?.penaltyShootout).toBeUndefined();
+    expect(addMissingPenaltyShootouts(result, entries, 'CURRENT_SEASON')).toBe(result);
   });
 
   it('uses goalkeeper signals for shot stopping without leaking them into finishing', () => {
